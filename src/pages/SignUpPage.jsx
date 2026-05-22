@@ -24,7 +24,11 @@ export default function SignUpPage() {
     if (password.length < 6) { setError('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); return }
     if (password !== confirm) { setError('รหัสผ่านไม่ตรงกัน'); return }
     setLoading(true)
-    const { error: err } = await supabase.auth.signUp({ email: email.trim(), password })
+    const { error: err } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { emailRedirectTo: 'https://teang459.github.io/chanthasy-stock' },
+    })
     setLoading(false)
     if (err) { setError(err.message); return }
     setDone(true)

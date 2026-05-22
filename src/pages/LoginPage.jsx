@@ -39,7 +39,9 @@ export default function LoginPage() {
     e.preventDefault()
     if (!resetEmail.trim()) return
     setResetLoading(true)
-    const { error: err } = await supabase.auth.resetPasswordForEmail(resetEmail.trim())
+    const { error: err } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+      redirectTo: 'https://teang459.github.io/chanthasy-stock',
+    })
     setResetLoading(false)
     if (err) {
       setError(err.message)
