@@ -29,9 +29,9 @@ export default function Sidebar({ lowCount, onClose }) {
       </button>
 
       <div className="brand">
-        <div className="brand-mark">สส</div>
+        <div className="brand-mark">CS</div>
         <div>
-          <div className="brand-name">สวนสมใจ</div>
+          <div className="brand-name">Chanthasy</div>
           <div className="brand-sub">STOCK · v3.0</div>
         </div>
       </div>

@@ -33,9 +33,9 @@ export default function LoginPage() {
     <div className="login-shell">
       <div className="login-card">
         <div className="login-brand">
-          <div className="brand-mark" style={{ width: 48, height: 48, fontSize: 20 }}>สส</div>
+          <div className="brand-mark" style={{ width: 48, height: 48, fontSize: 20 }}>CS</div>
           <div>
-            <div className="brand-name" style={{ fontSize: 20 }}>สวนสมใจ</div>
+            <div className="brand-name" style={{ fontSize: 20 }}>Chanthasy</div>
             <div className="brand-sub">ระบบจัดการสต็อกต้นไม้</div>
           </div>
         </div>
@@ -45,7 +45,7 @@ export default function LoginPage() {
             <span className="field-label">อีเมล</span>
             <input
               type="email"
-              placeholder="somjai@suansomjai.com"
+              placeholder="admin@chanthasy.com"
               value={email}
               onChange={e => setEmail(e.target.value)}
               autoComplete="email"

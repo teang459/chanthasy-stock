@@ -45,7 +45,7 @@ export default function Topbar({ onMenuToggle, lowCount, notifications, onNotifT
       </button>
 
       <div className="crumbs">
-        <span>สวนสมใจ</span>
+        <span>Chanthasy</span>
         <I.Chevron size={12} />
         <span className="here">{here}</span>
       </div>

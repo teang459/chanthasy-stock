@@ -46,7 +46,7 @@ export default function SettingsPage() {
     setNotifPerm(p)
     if (p === 'granted') {
       toast.success('เปิดใช้งานการแจ้งเตือนสำเร็จ')
-      new Notification('สวนสมใจ STOCK', { body: 'เปิดใช้งานการแจ้งเตือนสำเร็จแล้ว' })
+      new Notification('Chanthasy Stock', { body: 'เปิดใช้งานการแจ้งเตือนสำเร็จแล้ว' })
     } else if (p === 'denied') {
       toast.error('บล็อกการแจ้งเตือน — โปรดเปิดใช้งานในการตั้งค่าเบราว์เซอร์')
     }
