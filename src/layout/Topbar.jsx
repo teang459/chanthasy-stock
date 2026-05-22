@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import * as I from '../components/Icons'
 
 const PAGE_NAMES = {
@@ -17,9 +19,12 @@ const PAGE_NAMES = {
 export default function Topbar({ onMenuToggle, lowCount, notifications, onNotifToggle, showNotif }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const { profile } = useAuth()
+  const { toast } = useToast()
   const [q, setQ] = useState('')
   const inputRef = useRef()
   const here = PAGE_NAMES[location.pathname] ?? 'หน้า'
+  const shopName = profile?.shop_name?.trim() || 'My Shop'
 
   useEffect(() => {
     const handler = e => {
@@ -45,7 +50,7 @@ export default function Topbar({ onMenuToggle, lowCount, notifications, onNotifT
       </button>
 
       <div className="crumbs">
-        <span>Chanthasy</span>
+        <span className="crumbs-shop">{shopName}</span>
         <I.Chevron size={12} />
         <span className="here">{here}</span>
       </div>
@@ -93,13 +98,15 @@ export default function Topbar({ onMenuToggle, lowCount, notifications, onNotifT
               className="btn btn-ghost"
               style={{ fontSize: 12, padding: '4px 8px' }}
               onClick={async () => {
-                if ('Notification' in window) {
-                  const p = await Notification.requestPermission()
-                  if (p === 'granted') alert('เปิดใช้งานการแจ้งเตือนสำเร็จ')
-                }
+                if (!('Notification' in window)) { toast.error('เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน'); return }
+                if (Notification.permission === 'granted') { toast.success('เปิดใช้งานการแจ้งเตือนอยู่แล้ว'); return }
+                const p = await Notification.requestPermission()
+                if (p === 'granted') toast.success('เปิดใช้งานการแจ้งเตือนสำเร็จ')
+                else if (p === 'denied') toast.error('บล็อกการแจ้งเตือน — โปรดเปิดในการตั้งค่าเบราว์เซอร์')
+                else toast.info('ยังไม่ได้อนุญาตการแจ้งเตือน')
               }}
             >
-              เปิดใช้งาน Browser Notification
+              {Notification.permission === 'granted' ? 'การแจ้งเตือนเปิดอยู่แล้ว' : 'เปิดใช้งานการแจ้งเตือน'}
             </button>
           </div>
         </div>

@@ -124,6 +124,26 @@ export default function ReportsPage() {
             </table>
           </div>
         </section>
+
+        {/* Top by value */}
+        <section className="card">
+          <div className="card-header"><h2 className="card-title">Top 10 มูลค่ามากที่สุด</h2></div>
+          <div className="table-wrap" style={{ margin: 0 }}>
+            <table>
+              <thead><tr><th>#</th><th>ต้นไม้</th><th>ราคา</th><th>มูลค่ารวม</th></tr></thead>
+              <tbody>
+                {topValue.map((p,i) => (
+                  <tr key={p.id}>
+                    <td className="mono muted">{i+1}</td>
+                    <td>{p.name}</td>
+                    <td className="mono">{fmtCurrency(p.price)} {symbol}</td>
+                    <td className="mono">{fmtCurrency(p.stock * p.price)} {symbol}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </div>
   )

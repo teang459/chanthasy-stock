@@ -100,11 +100,18 @@ export default function DashboardPage() {
               {moves.map(m => (
                 <div key={m.id} className="move-item">
                   <span className={`move-badge move-badge--${m.type}`}>
-                    {m.type === 'in' ? '+' : m.type === 'out' ? '−' : '≈'}
+                    {m.type === 'in' ? '+' : m.type === 'out' ? '−' : m.type === 'new' ? '★' : m.type === 'delete' ? '✕' : '≈'}
                   </span>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div className="move-name">{m.plants?.name ?? '—'}</div>
-                    <div className="move-note">{m.note || (m.type === 'in' ? 'รับเข้า' : m.type === 'out' ? 'จ่ายออก' : 'ปรับสต็อก')}</div>
+                    <div className="move-name">{m.plants?.name ?? (m.type === 'delete' ? m.note : '—')}</div>
+                    <div className="move-note">{
+                      m.type === 'in' ? (m.note || 'รับเข้า') :
+                      m.type === 'out' ? (m.note || 'จ่ายออก') :
+                      m.type === 'new' ? 'เพิ่มสินค้าใหม่' :
+                      m.type === 'delete' ? 'ลบสินค้า' :
+                      m.type === 'rename' ? (m.note || 'เปลี่ยนชื่อ') :
+                      (m.note || 'ปรับสต็อก')
+                    }</div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div className="move-qty">{m.qty > 0 ? `+${m.qty}` : m.qty}</div>

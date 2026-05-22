@@ -20,6 +20,8 @@ const SYSTEM = [
 export default function Sidebar({ open, lowCount, onClose }) {
   const { profile, logout } = useAuth()
   const user = profile ?? { name: 'ผู้ใช้', role: 'staff', initials: 'UU' }
+  const shopName = profile?.shop_name?.trim() || 'My Shop'
+  const shopMark = shopName.slice(0, 2).toUpperCase()
 
   return (
     <aside className={`sidebar${open ? ' open' : ''}`}>
@@ -29,9 +31,9 @@ export default function Sidebar({ open, lowCount, onClose }) {
       </button>
 
       <div className="brand">
-        <div className="brand-mark">CS</div>
+        <div className="brand-mark">{shopMark}</div>
         <div>
-          <div className="brand-name">Chanthasy</div>
+          <div className="brand-name">{shopName}</div>
           <div className="brand-sub">STOCK · v3.0</div>
         </div>
       </div>

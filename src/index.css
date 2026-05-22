@@ -163,6 +163,7 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
   flex: 1; min-width: 0;
 }
 .crumbs .here { color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.crumbs-shop { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px }
 .topbar-search {
   display: flex; align-items: center; gap: 6px;
   background: var(--surface-2);
@@ -397,6 +398,9 @@ tbody tr:hover { background: var(--surface-2) }
 .move-badge--in     { background:var(--accent-soft); color:var(--accent-ink) }
 .move-badge--out    { background:var(--danger-soft); color:var(--danger-ink) }
 .move-badge--adjust { background:var(--amber-soft);  color:var(--amber-ink)  }
+.move-badge--new    { background:oklch(90% 0.08 145); color:oklch(30% 0.12 145) }
+.move-badge--delete { background:oklch(90% 0.06 15);  color:oklch(35% 0.14 15)  }
+.move-badge--rename { background:oklch(90% 0.05 260); color:oklch(35% 0.10 260) }
 .move-name { font-size:13px; font-weight:500 }
 .move-note { font-size:11px; color:var(--muted) }
 .move-qty  { font-family:'IBM Plex Mono'; font-size:13px; font-weight:600 }

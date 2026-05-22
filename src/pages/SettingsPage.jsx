@@ -11,20 +11,20 @@ export default function SettingsPage() {
   const { toast } = useToast()
   const { currency, setCurrency, symbol } = useCurrency()
 
-  const [profileForm, setProfileForm] = useState({ name:'', initials:'', role:'' })
+  const [profileForm, setProfileForm] = useState({ name:'', initials:'', role:'', shop_name:'' })
   const [pwForm, setPwForm]           = useState({ newPw:'', confirmPw:'', showPw: false })
   const [notifPerm, setNotifPerm]     = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported')
   const [saving, setSaving]           = useState(false)
 
   useEffect(() => {
-    if (profile) setProfileForm({ name: profile.name??'', initials: profile.initials??'', role: profile.role??'staff' })
+    if (profile) setProfileForm({ name: profile.name??'', initials: profile.initials??'', role: profile.role??'staff', shop_name: profile.shop_name??'' })
   }, [profile])
 
   async function handleProfileSave(e) {
     e.preventDefault()
     if (!profileForm.name?.trim()) { toast.error('กรุณาระบุชื่อ'); return }
     setSaving(true)
-    const { error } = await updateProfile({ name: profileForm.name.trim(), initials: profileForm.initials?.trim() || profileForm.name.slice(0,2), role: profileForm.role })
+    const { error } = await updateProfile({ name: profileForm.name.trim(), initials: profileForm.initials?.trim() || profileForm.name.slice(0,2), role: profileForm.role, shop_name: profileForm.shop_name?.trim() || null })
     if (error) toast.error(`บันทึกไม่สำเร็จ: ${error.message}`)
     else toast.success('บันทึกโปรไฟล์สำเร็จ')
     setSaving(false)
@@ -72,6 +72,9 @@ export default function SettingsPage() {
               <I.Lock size={12} />
               <span>{user?.email}</span>
             </div>
+            <Field label="ชื่อร้าน" hint="แสดงในแถบด้านข้างและส่วนหัว">
+              <input value={profileForm.shop_name} onChange={e => setProfileForm(f=>({...f,shop_name:e.target.value}))} placeholder="ร้านต้นไม้สวยงาม" />
+            </Field>
             <Field label="ชื่อผู้ใช้" required>
               <input value={profileForm.name} onChange={e => setProfileForm(f=>({...f,name:e.target.value}))} placeholder="คุณสมใจ" />
             </Field>
