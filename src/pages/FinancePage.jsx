@@ -92,7 +92,7 @@ export default function FinancePage() {
         const mq = supabase.from('movements')
           .select('id, type, qty, note, created_at, plants(id, name, sku, price, cost)')
           .eq('owner_id', ownerId)
-          .in('type', ['in', 'out'])
+          .in('type', ['in', 'out', 'new'])
           .order('created_at', { ascending: false })
           .limit(2000)
         if (range !== 'all') {
@@ -137,28 +137,43 @@ export default function FinancePage() {
 
   // Build unified ledger: manual entries + stock movements as line items
   const ledger = useMemo(() => {
-    const stockRows = movements.map(m => {
-      const qty = Math.abs(Number(m.qty) || 0)
-      const price = Number(m.plants?.price ?? 0)
-      const cost  = Number(m.plants?.cost ?? 0)
-      const unitAmount = m.type === 'out' ? price : cost
-      const amount = qty * unitAmount
-      return {
-        id: `mov-${m.id}`,
-        source: 'stock',
-        type: m.type === 'out' ? 'income' : 'expense',
-        date: m.created_at.slice(0, 10),
-        sortAt: new Date(m.created_at).getTime(),
-        category: m.type === 'out' ? 'sale_stock' : 'purchase_stock',
-        categoryLabel: m.type === 'out' ? '📤 ขายจากสต็อก' : '📦 รับสต็อก',
-        title: m.plants?.name ?? '(สินค้าถูกลบ)',
-        sku: m.plants?.sku,
-        qty,
-        unitAmount,
-        amount,
-        note: m.note,
-      }
-    })
+    const stockRows = movements
+      .filter(m => {
+        // Filter out entries with no financial impact
+        const qty = Math.abs(Number(m.qty) || 0)
+        if (qty === 0) return false
+        if (m.type === 'out' && !m.plants?.price) return false
+        if ((m.type === 'in' || m.type === 'new') && !m.plants?.cost) return false
+        return true
+      })
+      .map(m => {
+        const qty = Math.abs(Number(m.qty) || 0)
+        const price = Number(m.plants?.price ?? 0)
+        const cost  = Number(m.plants?.cost ?? 0)
+        const isIncome = m.type === 'out'
+        const unitAmount = isIncome ? price : cost
+        const amount = qty * unitAmount
+        const labels = {
+          out: '📤 ขายจากสต็อก',
+          in:  '📦 รับสต็อก',
+          new: '🆕 เพิ่มสต็อกใหม่',
+        }
+        return {
+          id: `mov-${m.id}`,
+          source: 'stock',
+          type: isIncome ? 'income' : 'expense',
+          date: m.created_at.slice(0, 10),
+          sortAt: new Date(m.created_at).getTime(),
+          category: isIncome ? 'sale_stock' : (m.type === 'new' ? 'new_stock' : 'purchase_stock'),
+          categoryLabel: labels[m.type] || '📦 สต็อก',
+          title: m.plants?.name ?? '(สินค้าถูกลบ)',
+          sku: m.plants?.sku,
+          qty,
+          unitAmount,
+          amount,
+          note: m.note,
+        }
+      })
     const manualRows = entries.map(e => ({
       id: `ent-${e.id}`,
       _id: e.id,
@@ -179,7 +194,7 @@ export default function FinancePage() {
 
   const totals = useMemo(() => {
     let income = 0, expense = 0
-    let stockIncome = 0, stockExpense = 0
+    let stockIncome = 0, restockExpense = 0, newStockExpense = 0
     let manualIncome = 0, manualExpense = 0
     ledger.forEach(r => {
       if (r.type === 'income') {
@@ -187,12 +202,15 @@ export default function FinancePage() {
         if (r.source === 'stock') stockIncome += r.amount; else manualIncome += r.amount
       } else {
         expense += r.amount
-        if (r.source === 'stock') stockExpense += r.amount; else manualExpense += r.amount
+        if (r.source === 'stock') {
+          if (r.category === 'new_stock') newStockExpense += r.amount
+          else restockExpense += r.amount
+        } else manualExpense += r.amount
       }
     })
     const profit = income - expense
     const margin = income > 0 ? (profit / income) * 100 : 0
-    return { income, expense, profit, margin, stockIncome, stockExpense, manualIncome, manualExpense }
+    return { income, expense, profit, margin, stockIncome, restockExpense, newStockExpense, manualIncome, manualExpense }
   }, [ledger])
 
   const filtered = useMemo(() => {
@@ -364,8 +382,9 @@ export default function FinancePage() {
           <BreakdownRow label="✍️ บันทึกเอง"   value={totals.manualIncome} symbol={symbol} />
         </BreakdownCard>
         <BreakdownCard title="ที่มาของรายจ่าย" color={25}>
-          <BreakdownRow label="📦 รับสต็อก"     value={totals.stockExpense}  symbol={symbol} />
-          <BreakdownRow label="✍️ บันทึกเอง"   value={totals.manualExpense} symbol={symbol} />
+          <BreakdownRow label="🆕 เพิ่มสต็อกใหม่" value={totals.newStockExpense} symbol={symbol} />
+          <BreakdownRow label="📦 รับสต็อก (เติม)" value={totals.restockExpense} symbol={symbol} />
+          <BreakdownRow label="✍️ บันทึกเอง"      value={totals.manualExpense}  symbol={symbol} />
         </BreakdownCard>
       </div>
 

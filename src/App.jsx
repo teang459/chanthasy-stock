@@ -9,7 +9,6 @@ import ErrorBoundary from './components/ErrorBoundary'
 
 // Eager: auth-related (small, needed immediately)
 import LoginPage         from './pages/LoginPage'
-import SignUpPage        from './pages/SignUpPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import MfaChallengePage  from './pages/MfaChallengePage'
 
@@ -58,7 +57,6 @@ export default function App() {
           <Suspense fallback={<PageFallback />}>
             <Routes>
               <Route path="/login"          element={<LoginPage />} />
-              <Route path="/signup"         element={<SignUpPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/" element={<Guard><Layout /></Guard>}>
                 <Route index              element={<DashboardPage />} />

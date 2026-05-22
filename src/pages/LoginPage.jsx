@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Navigate, Link } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { userMessage } from '../lib/errors'
@@ -179,7 +179,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ textAlign: 'center', marginTop: 12 }}>
           <button
             type="button"
             className="btn btn-ghost"
@@ -188,14 +188,11 @@ export default function LoginPage() {
           >
             ลืมรหัสผ่าน?
           </button>
-          <Link to="/signup" style={{ fontSize: 13, color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}>
-            สมัครใช้งาน
-          </Link>
         </div>
 
         <div className="login-hint">
           <I.Info size={12} />
-          <span>สร้างบัญชีผู้ใช้ได้ใน Supabase Dashboard → Authentication → Users</span>
+          <span>ติดต่อผู้ดูแลระบบเพื่อขอบัญชีผู้ใช้</span>
         </div>
       </div>
     </div>
