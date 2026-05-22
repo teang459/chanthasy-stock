@@ -70,6 +70,9 @@ export default function Topbar({ onMenuToggle, lowCount, notifications, onNotifT
         <span className="here">{here}</span>
       </div>
 
+      {/* Mobile-only: current page name where crumbs would be */}
+      <span className="topbar-page-mobile">{here}</span>
+
       <div className="topbar-shopname">{shopName}</div>
 
       <div className="topbar-search">

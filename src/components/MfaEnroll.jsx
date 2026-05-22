@@ -82,24 +82,51 @@ export default function MfaEnroll() {
       return
     }
     setVerifying(true)
+
+    // Hard timeout — never let the UI hang forever
+    const withTimeout = (promise, ms, label) => Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timeout (${ms / 1000}s)`)), ms)),
+    ])
+
     try {
-      // challengeAndVerify combines challenge() + verify() in one call.
-      // Avoids 2-step race where challenge expires before verify.
-      const { error: vErr } = await supabase.auth.mfa.challengeAndVerify({
-        factorId: enrolling.factorId,
-        code,
-      })
-      if (vErr) throw vErr
+      console.log('[MFA] step 1: challenge()…', { factorId: enrolling.factorId })
+      const chResult = await withTimeout(
+        supabase.auth.mfa.challenge({ factorId: enrolling.factorId }),
+        10000,
+        'challenge'
+      )
+      console.log('[MFA] challenge response:', chResult)
+      if (chResult.error) throw chResult.error
+      if (!chResult.data?.id) throw new Error('Challenge ID หายไป (ตอบกลับผิดรูปแบบจาก Supabase)')
+
+      console.log('[MFA] step 2: verify()…', { factorId: enrolling.factorId, challengeId: chResult.data.id })
+      const vResult = await withTimeout(
+        supabase.auth.mfa.verify({
+          factorId: enrolling.factorId,
+          challengeId: chResult.data.id,
+          code,
+        }),
+        10000,
+        'verify'
+      )
+      console.log('[MFA] verify response:', vResult)
+      if (vResult.error) throw vResult.error
+
       toast.success('เปิด 2FA สำเร็จ ครั้งต่อไปต้องใช้แอป Authenticator')
       setEnrolling(null)
       setCode('')
-      loadFactors()
+      await loadFactors()
     } catch (err) {
-      console.error('[MFA] verify:', err)
-      const msg = err.message || ''
-      let display = userMessage(err)
-      if (/invalid|incorrect|code/i.test(msg)) {
-        display = 'รหัสไม่ถูกต้อง — ลองอีกครั้ง (ตรวจเวลามือถือต้องตรง)'
+      console.error('[MFA] verify error:', err, err?.message, err?.code)
+      const msg = err?.message || ''
+      let display
+      if (/timeout/i.test(msg)) {
+        display = `เครือข่ายช้าหรือไม่ตอบกลับ: ${msg}`
+      } else if (/invalid TOTP|invalid token|code/i.test(msg)) {
+        display = 'รหัสไม่ถูกต้อง — ลองอีกครั้ง และตรวจให้แน่ใจว่าเวลามือถือตรง (เปิด Set Time Automatically)'
+      } else {
+        display = `${userMessage(err)} — ${msg || err?.code || 'unknown'}`
       }
       setError(display)
     } finally {

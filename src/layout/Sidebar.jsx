@@ -29,9 +29,11 @@ export default function Sidebar({ open, lowCount, onClose }) {
 
       <div className="brand">
         <div className="brand-mark">CS</div>
-        <div>
-          <div className="brand-name">Chanthasy</div>
-          <div className="brand-sub">STOCK · v3.0</div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className="brand-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {profile?.shop_name?.trim() || 'My Shop'}
+          </div>
+          <div className="brand-sub">Chanthasy Stock</div>
         </div>
       </div>
 
