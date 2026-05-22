@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { useCurrency } from '../contexts/CurrencyContext'
-import { fmtCurrency, fmtDate, downloadCSV } from '../lib/utils'
+import { fmtCurrency, fmtDate, fmtDateTime, downloadCSV } from '../lib/utils'
 import { userMessage } from '../lib/errors'
 import Modal from '../components/Modal'
 import Confirm from '../components/Confirm'
@@ -23,12 +23,12 @@ const RANGES = [
 
 const CATEGORIES = {
   income: [
-    { value: 'sale',     label: '💰 ขายสินค้า (ทั่วไป)' },
+    { value: 'sale',     label: '💰 ขายสินค้า (นอกระบบสต็อก)' },
     { value: 'service',  label: '🛠 บริการ' },
     { value: 'other',    label: '📦 อื่นๆ' },
   ],
   expense: [
-    { value: 'purchase', label: '🛒 ซื้อของ' },
+    { value: 'purchase', label: '🛒 ซื้อของ (นอกระบบสต็อก)' },
     { value: 'rent',     label: '🏠 ค่าเช่า' },
     { value: 'salary',   label: '👤 เงินเดือน' },
     { value: 'utility',  label: '⚡ สาธารณูปโภค' },
@@ -61,8 +61,9 @@ export default function FinancePage() {
   const [entries, setEntries]   = useState([])
   const [movements, setMovements] = useState([])
   const [loading, setLoading]   = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [range, setRange]       = useState('30')
-  const [tab, setTab]           = useState('all') // all | income | expense
+  const [tab, setTab]           = useState('all') // all | income | expense | stock | manual
   const [showForm, setShowForm] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [delItem, setDelItem]   = useState(null)
@@ -70,77 +71,138 @@ export default function FinancePage() {
   const [errors, setErrors]     = useState({})
   const [saving, setSaving]     = useState(false)
 
+  // Data loading — separate from realtime subscription
   useEffect(() => {
-    if (!ownerId) return
-    load()
-    const ch = supabase.channel(`finance-${ownerId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'finance_entries', filter: `owner_id=eq.${ownerId}` }, load)
-      .subscribe()
-    return () => supabase.removeChannel(ch)
+    if (!ownerId) { setLoading(false); return }
+    let cancelled = false
+    setLoading(true)
+    setLoadError('')
+
+    const timeout = setTimeout(() => {
+      if (!cancelled) {
+        setLoadError('โหลดข้อมูลช้าผิดปกติ — ตรวจสอบการเชื่อมต่อ')
+        setLoading(false)
+      }
+    }, 15000)
+
+    ;(async () => {
+      try {
+        const eq = supabase.from('finance_entries').select('*').eq('owner_id', ownerId).order('date', { ascending: false }).limit(1000)
+        const mq = supabase.from('movements')
+          .select('id, type, qty, note, created_at, plants(id, name, sku, price, cost)')
+          .eq('owner_id', ownerId)
+          .in('type', ['in', 'out'])
+          .order('created_at', { ascending: false })
+          .limit(2000)
+        if (range !== 'all') {
+          const since = daysAgoISO(Number(range))
+          eq.gte('date', since.slice(0, 10))
+          mq.gte('created_at', since)
+        }
+        const [eRes, mRes] = await Promise.all([eq, mq])
+        if (cancelled) return
+        if (eRes.error) throw eRes.error
+        if (mRes.error) throw mRes.error
+        setEntries(eRes.data ?? [])
+        setMovements(mRes.data ?? [])
+      } catch (err) {
+        if (cancelled) return
+        console.error('[Finance] load error:', err)
+        setLoadError(userMessage(err) + ` (${err.code || err.message || 'unknown'})`)
+      } finally {
+        clearTimeout(timeout)
+        if (!cancelled) setLoading(false)
+      }
+    })()
+
+    return () => { cancelled = true; clearTimeout(timeout) }
   }, [ownerId, range])
 
-  async function load() {
+  // Realtime — separate so its failure doesn't block load
+  useEffect(() => {
     if (!ownerId) return
-    setLoading(true)
+    let ch
     try {
-      const eq = supabase.from('finance_entries').select('*').eq('owner_id', ownerId).order('date', { ascending: false }).limit(500)
-      const mq = supabase.from('movements')
-        .select('type, qty, created_at, plants(name, price, cost)')
-        .eq('owner_id', ownerId)
-        .in('type', ['in', 'out'])
-        .order('created_at', { ascending: false })
-        .limit(2000)
-      if (range !== 'all') {
-        const since = daysAgoISO(Number(range))
-        eq.gte('date', since.slice(0, 10))
-        mq.gte('created_at', since)
-      }
-      const [{ data: e, error: eErr }, { data: m, error: mErr }] = await Promise.all([eq, mq])
-      if (eErr || mErr) throw (eErr || mErr)
-      setEntries(e ?? [])
-      setMovements(m ?? [])
+      ch = supabase.channel(`finance-${ownerId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'finance_entries', filter: `owner_id=eq.${ownerId}` }, () => {
+          // Trigger reload by toggling range (cheap)
+          setRange(r => r)
+        })
+        .subscribe()
     } catch (err) {
-      toast.error(`โหลดไม่สำเร็จ: ${userMessage(err)}`)
-    } finally {
-      setLoading(false)
+      console.warn('[Finance] realtime failed (non-fatal):', err)
     }
-  }
+    return () => { if (ch) supabase.removeChannel(ch) }
+  }, [ownerId])
 
-  // Auto-derived from stock movements
-  const stockSummary = useMemo(() => {
-    let revenue = 0, cogs = 0, purchase = 0
-    movements.forEach(m => {
+  // Build unified ledger: manual entries + stock movements as line items
+  const ledger = useMemo(() => {
+    const stockRows = movements.map(m => {
       const qty = Math.abs(Number(m.qty) || 0)
       const price = Number(m.plants?.price ?? 0)
       const cost  = Number(m.plants?.cost ?? 0)
-      if (m.type === 'out') { revenue += qty * price; cogs += qty * cost }
-      else if (m.type === 'in') { purchase += qty * cost }
+      const unitAmount = m.type === 'out' ? price : cost
+      const amount = qty * unitAmount
+      return {
+        id: `mov-${m.id}`,
+        source: 'stock',
+        type: m.type === 'out' ? 'income' : 'expense',
+        date: m.created_at.slice(0, 10),
+        sortAt: new Date(m.created_at).getTime(),
+        category: m.type === 'out' ? 'sale_stock' : 'purchase_stock',
+        categoryLabel: m.type === 'out' ? '📤 ขายจากสต็อก' : '📦 รับสต็อก',
+        title: m.plants?.name ?? '(สินค้าถูกลบ)',
+        sku: m.plants?.sku,
+        qty,
+        unitAmount,
+        amount,
+        note: m.note,
+      }
     })
-    return { revenue, cogs, purchase, grossProfit: revenue - cogs }
-  }, [movements])
-
-  const manualSummary = useMemo(() => {
-    let income = 0, expense = 0
-    entries.forEach(e => {
-      const amt = Number(e.amount) || 0
-      if (e.type === 'income')  income  += amt
-      else                      expense += amt
-    })
-    return { income, expense }
-  }, [entries])
+    const manualRows = entries.map(e => ({
+      id: `ent-${e.id}`,
+      _id: e.id,
+      source: 'manual',
+      type: e.type,
+      date: e.date,
+      sortAt: new Date(e.date + 'T00:00:00').getTime(),
+      category: e.category,
+      categoryLabel: CAT_LABEL[e.category] || e.category,
+      title: e.title,
+      qty: 1,
+      unitAmount: Number(e.amount),
+      amount: Number(e.amount),
+      note: e.note,
+    }))
+    return [...stockRows, ...manualRows].sort((a, b) => b.sortAt - a.sortAt)
+  }, [movements, entries])
 
   const totals = useMemo(() => {
-    const totalIncome  = stockSummary.revenue  + manualSummary.income
-    const totalExpense = stockSummary.purchase + manualSummary.expense
-    const netProfit    = totalIncome - totalExpense
-    const margin       = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0
-    return { totalIncome, totalExpense, netProfit, margin }
-  }, [stockSummary, manualSummary])
+    let income = 0, expense = 0
+    let stockIncome = 0, stockExpense = 0
+    let manualIncome = 0, manualExpense = 0
+    ledger.forEach(r => {
+      if (r.type === 'income') {
+        income += r.amount
+        if (r.source === 'stock') stockIncome += r.amount; else manualIncome += r.amount
+      } else {
+        expense += r.amount
+        if (r.source === 'stock') stockExpense += r.amount; else manualExpense += r.amount
+      }
+    })
+    const profit = income - expense
+    const margin = income > 0 ? (profit / income) * 100 : 0
+    return { income, expense, profit, margin, stockIncome, stockExpense, manualIncome, manualExpense }
+  }, [ledger])
 
   const filtered = useMemo(() => {
-    if (tab === 'all') return entries
-    return entries.filter(e => e.type === tab)
-  }, [entries, tab])
+    if (tab === 'all')     return ledger
+    if (tab === 'income')  return ledger.filter(r => r.type === 'income')
+    if (tab === 'expense') return ledger.filter(r => r.type === 'expense')
+    if (tab === 'stock')   return ledger.filter(r => r.source === 'stock')
+    if (tab === 'manual')  return ledger.filter(r => r.source === 'manual')
+    return ledger
+  }, [ledger, tab])
 
   function validate(f) {
     const e = {}
@@ -156,24 +218,23 @@ export default function FinancePage() {
     setErrors({}); setEditItem(null); setShowForm(true)
   }
 
-  function openEdit(item) {
+  function openEdit(row) {
+    // Only manual entries are editable here. Stock entries link to /movements.
+    if (row.source !== 'manual') return
     setForm({
-      type: item.type,
-      category: item.category,
-      title: item.title,
-      amount: String(item.amount),
-      date: item.date,
-      note: item.note ?? '',
+      type: row.type,
+      category: row.category,
+      title: row.title,
+      amount: String(row.amount),
+      date: row.date,
+      note: row.note ?? '',
     })
-    setErrors({}); setEditItem(item); setShowForm(true)
+    setErrors({}); setEditItem(row); setShowForm(true)
   }
 
   function setF(k, v) {
     setForm(f => {
-      // Reset category when switching type
-      if (k === 'type' && v !== f.type) {
-        return { ...f, type: v, category: CATEGORIES[v][0].value }
-      }
+      if (k === 'type' && v !== f.type) return { ...f, type: v, category: CATEGORIES[v][0].value }
       return { ...f, [k]: v }
     })
   }
@@ -193,7 +254,7 @@ export default function FinancePage() {
         note: form.note?.trim() || null,
       }
       if (editItem) {
-        const { error } = await supabase.from('finance_entries').update(payload).eq('id', editItem.id)
+        const { error } = await supabase.from('finance_entries').update(payload).eq('id', editItem._id)
         if (error) throw error
         toast.success('แก้ไขรายการสำเร็จ')
       } else {
@@ -202,7 +263,8 @@ export default function FinancePage() {
         toast.success(form.type === 'income' ? 'บันทึกรายรับสำเร็จ' : 'บันทึกรายจ่ายสำเร็จ')
       }
       setShowForm(false)
-      load()
+      // Trigger reload
+      setRange(r => r)
     } catch (err) {
       toast.error(userMessage(err))
     } finally {
@@ -210,12 +272,13 @@ export default function FinancePage() {
     }
   }
 
-  async function handleDelete(item) {
+  async function handleDelete(row) {
+    if (row.source !== 'manual') return
     try {
-      const { error } = await supabase.from('finance_entries').delete().eq('id', item.id)
+      const { error } = await supabase.from('finance_entries').delete().eq('id', row._id)
       if (error) throw error
       toast.success('ลบรายการสำเร็จ')
-      load()
+      setRange(r => r)
     } catch (err) {
       toast.error(userMessage(err))
     }
@@ -224,14 +287,17 @@ export default function FinancePage() {
 
   function handleExport() {
     const rows = [
-      ['วันที่', 'ประเภท', 'หมวดหมู่', 'รายการ', 'จำนวนเงิน', 'หมายเหตุ'],
-      ...filtered.map(e => [
-        fmtDate(e.date),
-        e.type === 'income' ? 'รายรับ' : 'รายจ่าย',
-        CAT_LABEL[e.category] || e.category,
-        e.title,
-        e.amount,
-        e.note ?? '',
+      ['วันที่', 'แหล่งที่มา', 'ประเภท', 'หมวดหมู่', 'รายการ', 'จำนวน', 'ราคา/หน่วย', 'ยอดรวม', 'หมายเหตุ'],
+      ...filtered.map(r => [
+        fmtDate(r.date),
+        r.source === 'stock' ? 'สต็อก' : 'บันทึกเอง',
+        r.type === 'income' ? 'รายรับ' : 'รายจ่าย',
+        r.categoryLabel,
+        r.title + (r.sku ? ` (${r.sku})` : ''),
+        r.qty,
+        r.unitAmount,
+        r.amount,
+        r.note ?? '',
       ]),
     ]
     downloadCSV(rows, `การเงิน-${today()}.csv`)
@@ -243,17 +309,36 @@ export default function FinancePage() {
       <div className="page">
         <div className="page-header"><div><h1 className="page-title">การเงิน</h1><p className="page-sub">กำลังโหลด...</p></div></div>
         <SkeletonStats count={4} />
-        <div style={{ marginTop: 24 }}><SkeletonTable rows={6} cols={5} /></div>
+        <div style={{ marginTop: 24 }}><SkeletonTable rows={6} cols={6} /></div>
       </div>
     )
   }
+
+  if (loadError) {
+    return (
+      <div className="page">
+        <div className="page-header"><div><h1 className="page-title">การเงิน</h1></div></div>
+        <div className="login-error" style={{ marginTop: 16 }}>
+          <I.Warning size={13} /> {loadError}
+        </div>
+        <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => setRange(r => r)}>
+          ลองอีกครั้ง
+        </button>
+      </div>
+    )
+  }
+
+  const stockCount  = ledger.filter(r => r.source === 'stock').length
+  const manualCount = ledger.filter(r => r.source === 'manual').length
 
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <h1 className="page-title">การเงิน</h1>
-          <p className="page-sub">รายรับ {entries.filter(e=>e.type==='income').length} · รายจ่าย {entries.filter(e=>e.type==='expense').length} รายการ</p>
+          <p className="page-sub">
+            {ledger.length} รายการ · จากสต็อก {stockCount} · บันทึกเอง {manualCount}
+          </p>
         </div>
         <div className="page-actions" style={{ alignItems: 'center', gap: 8 }}>
           <select value={range} onChange={e => setRange(e.target.value)} style={{ minWidth: 110 }}>
@@ -266,47 +351,45 @@ export default function FinancePage() {
 
       {/* P&L Summary */}
       <div className="stats-grid">
-        <FinanceStat label="รายรับรวม"  value={fmtCurrency(totals.totalIncome)}  unit={symbol} color={140} icon={I.TrendUp} />
-        <FinanceStat label="รายจ่ายรวม" value={fmtCurrency(totals.totalExpense)} unit={symbol} color={25}  icon={I.TrendDown} />
-        <FinanceStat label="กำไรสุทธิ"  value={fmtCurrency(totals.netProfit)}    unit={symbol} color={totals.netProfit >= 0 ? 170 : 25} icon={I.Wallet} highlight={totals.netProfit >= 0 ? 'good' : 'bad'} />
-        <FinanceStat label="อัตรากำไร"  value={`${totals.margin.toFixed(1)}%`}   unit=""       color={220} icon={I.Chart} />
+        <FinanceStat label="รายรับรวม"  value={fmtCurrency(totals.income)}  unit={symbol} color={140} icon={I.TrendUp} />
+        <FinanceStat label="รายจ่ายรวม" value={fmtCurrency(totals.expense)} unit={symbol} color={25}  icon={I.TrendDown} />
+        <FinanceStat label="กำไรสุทธิ"  value={fmtCurrency(totals.profit)}  unit={symbol} color={totals.profit >= 0 ? 170 : 25} icon={I.Wallet} highlight={totals.profit >= 0 ? 'good' : 'bad'} />
+        <FinanceStat label="อัตรากำไร"  value={`${totals.margin.toFixed(1)}%`} unit="" color={220} icon={I.Chart} />
       </div>
 
       {/* Breakdown */}
-      <div className="finance-breakdown" style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
+      <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
         <BreakdownCard title="ที่มาของรายรับ" color={140}>
-          <BreakdownRow label="ขายสต็อก (auto)"  value={stockSummary.revenue} symbol={symbol} />
-          <BreakdownRow label="รายรับที่บันทึก"  value={manualSummary.income} symbol={symbol} />
+          <BreakdownRow label="📤 ขายจากสต็อก" value={totals.stockIncome}  symbol={symbol} />
+          <BreakdownRow label="✍️ บันทึกเอง"   value={totals.manualIncome} symbol={symbol} />
         </BreakdownCard>
         <BreakdownCard title="ที่มาของรายจ่าย" color={25}>
-          <BreakdownRow label="ซื้อสต็อก (auto)"  value={stockSummary.purchase} symbol={symbol} />
-          <BreakdownRow label="รายจ่ายที่บันทึก"  value={manualSummary.expense} symbol={symbol} />
+          <BreakdownRow label="📦 รับสต็อก"     value={totals.stockExpense}  symbol={symbol} />
+          <BreakdownRow label="✍️ บันทึกเอง"   value={totals.manualExpense} symbol={symbol} />
         </BreakdownCard>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginTop: 24, borderBottom: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', gap: 4, marginTop: 24, borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
         {[
-          { v: 'all',     l: 'ทั้งหมด' },
-          { v: 'income',  l: 'รายรับ' },
-          { v: 'expense', l: 'รายจ่าย' },
+          { v: 'all',     l: `ทั้งหมด (${ledger.length})` },
+          { v: 'income',  l: `รายรับ (${ledger.filter(r=>r.type==='income').length})` },
+          { v: 'expense', l: `รายจ่าย (${ledger.filter(r=>r.type==='expense').length})` },
+          { v: 'stock',   l: `จากสต็อก (${stockCount})` },
+          { v: 'manual',  l: `บันทึกเอง (${manualCount})` },
         ].map(t => (
-          <button key={t.v}
-            onClick={() => setTab(t.v)}
-            className="finance-tab"
-            data-active={tab === t.v}
-          >
+          <button key={t.v} onClick={() => setTab(t.v)} className="finance-tab" data-active={tab === t.v}>
             {t.l}
           </button>
         ))}
       </div>
 
-      {/* Entries list */}
+      {/* Ledger table */}
       {filtered.length === 0 ? (
         <EmptyState
           title="ยังไม่มีรายการ"
-          desc={tab === 'income' ? 'เริ่มบันทึกรายรับที่ไม่ได้มาจากสต็อก' : tab === 'expense' ? 'เริ่มบันทึกค่าใช้จ่าย (ค่าเช่า เงินเดือน ฯลฯ)' : 'เริ่มบันทึกรายรับ-รายจ่ายของร้าน'}
-          action={canWrite ? { label: 'เพิ่มรายการ', onClick: () => openAdd(tab === 'expense' ? 'expense' : 'income') } : undefined}
+          desc="เริ่มจากเพิ่มสต็อกใหม่ที่หน้า 'รายการสต็อก' หรือกด 'เพิ่มรายการ' ด้านบน"
+          action={canWrite ? { label: 'เพิ่มรายการ', onClick: () => openAdd('income') } : undefined}
         />
       ) : (
         <div className="table-wrap" style={{ marginTop: 16 }}>
@@ -316,24 +399,40 @@ export default function FinancePage() {
               <th>รายการ</th>
               <th>หมวดหมู่</th>
               <th style={{ textAlign: 'right' }}>จำนวน</th>
+              <th style={{ textAlign: 'right' }}>ราคา/หน่วย</th>
+              <th style={{ textAlign: 'right' }}>ยอดรวม</th>
               <th style={{ width: 90 }}></th>
             </tr></thead>
             <tbody>
-              {filtered.map(e => (
-                <tr key={e.id}>
-                  <td className="text-sm mono">{fmtDate(e.date)}</td>
-                  <td>
-                    <div className="plant-name">{e.title}</div>
-                    {e.note && <div className="plant-sci" style={{ fontStyle: 'normal' }}>{e.note}</div>}
+              {filtered.map(r => (
+                <tr key={r.id}>
+                  <td className="text-sm mono" style={{ whiteSpace: 'nowrap' }}>
+                    {r.source === 'stock' ? fmtDateTime(r.date + 'T00:00:00') : fmtDate(r.date)}
                   </td>
-                  <td><span className="badge">{CAT_LABEL[e.category] || e.category}</span></td>
-                  <td className="mono" style={{ textAlign: 'right', color: e.type === 'income' ? 'var(--accent-ink)' : 'var(--danger-ink)', fontWeight: 600 }}>
-                    {e.type === 'income' ? '+' : '−'}{fmtCurrency(e.amount)} {symbol}
+                  <td>
+                    <div className="plant-name">
+                      {r.title}
+                      {r.sku && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6, fontFamily: 'monospace' }}>{r.sku}</span>}
+                    </div>
+                    {r.note && <div className="plant-sci" style={{ fontStyle: 'normal' }}>{r.note}</div>}
+                  </td>
+                  <td>
+                    <span className="badge" style={r.source === 'stock' ? { background: 'oklch(95% 0.03 220)', color: 'oklch(35% 0.10 220)' } : undefined}>
+                      {r.categoryLabel}
+                    </span>
+                  </td>
+                  <td className="mono" style={{ textAlign: 'right' }}>{r.qty > 1 ? `× ${r.qty}` : '—'}</td>
+                  <td className="mono" style={{ textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>
+                    {r.qty > 1 ? `${fmtCurrency(r.unitAmount)} ${symbol}` : '—'}
+                  </td>
+                  <td className="mono" style={{ textAlign: 'right', color: r.type === 'income' ? 'var(--accent-ink)' : 'var(--danger-ink)', fontWeight: 600 }}>
+                    {r.type === 'income' ? '+' : '−'}{fmtCurrency(r.amount)} {symbol}
                   </td>
                   <td>
                     <div className="row-actions">
-                      {canWrite && <button className="icon-btn" onClick={() => openEdit(e)} title="แก้ไข"><I.Edit size={13} /></button>}
-                      {canDelete && <button className="icon-btn danger" onClick={() => setDelItem(e)} title="ลบ"><I.Trash size={13} /></button>}
+                      {r.source === 'manual' && canWrite && <button className="icon-btn" onClick={() => openEdit(r)} title="แก้ไข"><I.Edit size={13} /></button>}
+                      {r.source === 'manual' && canDelete && <button className="icon-btn danger" onClick={() => setDelItem(r)} title="ลบ"><I.Trash size={13} /></button>}
+                      {r.source === 'stock' && <span style={{ fontSize: 11, color: 'var(--muted)' }}>auto</span>}
                     </div>
                   </td>
                 </tr>
@@ -343,7 +442,6 @@ export default function FinancePage() {
         </div>
       )}
 
-      {/* Add/Edit modal */}
       {showForm && (
         <Modal title={editItem ? 'แก้ไขรายการ' : 'เพิ่มรายการ'} onClose={() => setShowForm(false)} size="md">
           <form onSubmit={handleSave} className="form-grid">
