@@ -9,6 +9,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [isRecoveryMode, setIsRecoveryMode] = useState(false)
   const [adminViewingOwnerId, setAdminViewingOwnerId] = useState(null)
+  const [mfaRequired, setMfaRequired] = useState(false)
 
   async function fetchProfile(userId) {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
@@ -16,19 +17,32 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       const u = session?.user ?? null
       setUser(u)
-      if (u) fetchProfile(u.id)
+      if (u) {
+        fetchProfile(u.id)
+        // Check if user has unverified MFA challenges pending
+        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+        if (aal?.currentLevel === 'aal1' && aal?.nextLevel === 'aal2') setMfaRequired(true)
+      }
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (_event === 'PASSWORD_RECOVERY') setIsRecoveryMode(true)
+      if (_event === 'MFA_CHALLENGE_VERIFIED') setMfaRequired(false)
       const u = session?.user ?? null
       setUser(u)
-      if (u) fetchProfile(u.id)
-      else { setProfile(null); setAdminViewingOwnerId(null) }
+      if (u) {
+        fetchProfile(u.id)
+        if (_event === 'SIGNED_IN') {
+          const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+          setMfaRequired(aal?.currentLevel === 'aal1' && aal?.nextLevel === 'aal2')
+        }
+      } else {
+        setProfile(null); setAdminViewingOwnerId(null); setMfaRequired(false)
+      }
     })
 
     return () => subscription.unsubscribe()
@@ -43,7 +57,12 @@ export function AuthProvider({ children }) {
   async function logout() {
     setAdminViewingOwnerId(null)
     setIsRecoveryMode(false)
+    setMfaRequired(false)
     await supabase.auth.signOut()
+  }
+
+  function clearMfaRequired() {
+    setMfaRequired(false)
   }
 
   async function updateProfile(updates) {
@@ -72,6 +91,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       user, profile, loading, login, logout, updateProfile, changePassword, refreshProfile,
       ownerId, isRecoveryMode, clearRecoveryMode,
+      mfaRequired, clearMfaRequired,
       adminViewingOwnerId, setAdminViewingOwnerId, isAdmin,
     }}>
       {children}

@@ -5,6 +5,7 @@ import { useCurrency } from '../contexts/CurrencyContext'
 import { supabase } from '../lib/supabase'
 import Spinner from '../components/Spinner'
 import Field from '../components/Field'
+import MfaEnroll from '../components/MfaEnroll'
 import * as I from '../components/Icons'
 import { userMessage, passwordIssue } from '../lib/errors'
 
@@ -213,6 +214,14 @@ export default function SettingsPage() {
                 </button>
               )}
             </div>
+          </div>
+        </section>
+
+        {/* 2FA */}
+        <section className="card">
+          <div className="card-header"><h2 className="card-title">🔐 การยืนยัน 2 ขั้นตอน</h2></div>
+          <div className="settings-card-body">
+            <MfaEnroll />
           </div>
         </section>
 

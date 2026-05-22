@@ -1,0 +1,151 @@
+import React, { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
+import { useToast } from '../contexts/ToastContext'
+import { userMessage } from '../lib/errors'
+import Spinner from './Spinner'
+import * as I from './Icons'
+
+export default function MfaEnroll() {
+  const { toast } = useToast()
+  const [factors, setFactors]       = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [enrolling, setEnrolling]   = useState(null) // { factorId, qr, secret }
+  const [code, setCode]             = useState('')
+  const [verifying, setVerifying]   = useState(false)
+
+  useEffect(() => { loadFactors() }, [])
+
+  async function loadFactors() {
+    setLoading(true)
+    const { data, error } = await supabase.auth.mfa.listFactors()
+    if (error) toast.error(userMessage(error))
+    setFactors(data?.totp ?? [])
+    setLoading(false)
+  }
+
+  async function startEnroll() {
+    setEnrolling({ loading: true })
+    const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' })
+    if (error) {
+      toast.error(userMessage(error))
+      setEnrolling(null)
+      return
+    }
+    setEnrolling({
+      factorId: data.id,
+      qr:       data.totp?.qr_code,
+      secret:   data.totp?.secret,
+      uri:      data.totp?.uri,
+    })
+  }
+
+  async function verifyEnroll() {
+    if (!enrolling?.factorId || code.length !== 6) {
+      toast.error('กรุณากรอกรหัส 6 หลักจากแอป Authenticator')
+      return
+    }
+    setVerifying(true)
+    try {
+      const { data: ch, error: chErr } = await supabase.auth.mfa.challenge({ factorId: enrolling.factorId })
+      if (chErr) throw chErr
+      const { error: vErr } = await supabase.auth.mfa.verify({
+        factorId: enrolling.factorId,
+        challengeId: ch.id,
+        code,
+      })
+      if (vErr) throw vErr
+      toast.success('เปิด 2FA สำเร็จ ครั้งต่อไปจะต้องใช้แอป Authenticator')
+      setEnrolling(null)
+      setCode('')
+      loadFactors()
+    } catch (err) {
+      toast.error(userMessage(err))
+    } finally {
+      setVerifying(false)
+    }
+  }
+
+  async function cancelEnroll() {
+    if (enrolling?.factorId) {
+      await supabase.auth.mfa.unenroll({ factorId: enrolling.factorId })
+    }
+    setEnrolling(null)
+    setCode('')
+  }
+
+  async function removeFactor(factorId) {
+    if (!confirm('แน่ใจหรือว่าต้องการปิดการยืนยัน 2 ขั้นตอน?')) return
+    const { error } = await supabase.auth.mfa.unenroll({ factorId })
+    if (error) toast.error(userMessage(error))
+    else { toast.success('ปิด 2FA สำเร็จ'); loadFactors() }
+  }
+
+  if (loading) return <div style={{ padding: 16 }}><Spinner size={20} /></div>
+
+  const activeFactor = factors.find(f => f.status === 'verified')
+
+  return (
+    <div>
+      {activeFactor ? (
+        <div style={{ background: 'var(--accent-soft)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <div>
+              <div style={{ fontWeight: 600, color: 'var(--accent-ink)' }}>✅ เปิดใช้งาน 2FA แล้ว</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                บัญชีของคุณปลอดภัยมากขึ้น — ต้องใช้รหัสจากแอป Authenticator ทุกครั้งที่เข้าสู่ระบบ
+              </div>
+            </div>
+            <button className="btn btn-ghost" style={{ fontSize: 12, color: 'var(--danger-ink)' }} onClick={() => removeFactor(activeFactor.id)}>
+              ปิด 2FA
+            </button>
+          </div>
+        </div>
+      ) : enrolling?.qr ? (
+        <div>
+          <p className="settings-hint" style={{ marginBottom: 12 }}>
+            1. เปิดแอป Authenticator (Google Authenticator, Authy, 1Password ฯลฯ)<br />
+            2. สแกน QR Code หรือกรอก secret manually<br />
+            3. กรอกรหัส 6 หลักที่ได้
+          </p>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div style={{ background: '#fff', padding: 8, border: '1px solid var(--border)', borderRadius: 8 }}>
+              <img src={enrolling.qr} alt="QR Code 2FA" style={{ width: 160, height: 160, display: 'block' }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Secret (กรณีสแกนไม่ได้)</div>
+              <code style={{ fontSize: 11, wordBreak: 'break-all', background: 'var(--bg)', padding: '6px 8px', borderRadius: 6, display: 'block', marginBottom: 12 }}>
+                {enrolling.secret}
+              </code>
+              <input
+                type="text"
+                placeholder="รหัส 6 หลัก"
+                value={code}
+                onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                style={{ fontSize: 18, letterSpacing: 4, textAlign: 'center', fontFamily: 'monospace' }}
+                autoFocus
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button className="btn btn-ghost" onClick={cancelEnroll} disabled={verifying}>ยกเลิก</button>
+                <button className="btn btn-primary" onClick={verifyEnroll} disabled={verifying || code.length !== 6} style={{ flex: 1, justifyContent: 'center' }}>
+                  {verifying ? <Spinner size={14} color="#fff" /> : 'ยืนยัน'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <p className="settings-hint">
+            เพิ่มชั้นความปลอดภัยให้บัญชี — ใช้แอป Authenticator (เช่น Google Authenticator) เพื่อสร้างรหัส 6 หลักทุกครั้งที่เข้าสู่ระบบ
+          </p>
+          <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={startEnroll}>
+            <I.Lock size={13} /> ตั้งค่า 2FA
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}

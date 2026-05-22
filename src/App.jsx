@@ -11,6 +11,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import LoginPage         from './pages/LoginPage'
 import SignUpPage        from './pages/SignUpPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import MfaChallengePage  from './pages/MfaChallengePage'
 
 // Lazy: data pages (loaded after authentication)
 const DashboardPage  = lazy(() => import('./pages/DashboardPage'))
@@ -36,9 +37,10 @@ function RecoveryHandler() {
 }
 
 function Guard({ children }) {
-  const { user, loading } = useAuth()
+  const { user, loading, mfaRequired } = useAuth()
   if (loading) return <div className="fullscreen-center"><Spinner size={36} /></div>
   if (!user) return <Navigate to="/login" replace />
+  if (mfaRequired) return <MfaChallengePage />
   return children
 }
 
