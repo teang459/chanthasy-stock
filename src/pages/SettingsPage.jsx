@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { useCurrency } from '../contexts/CurrencyContext'
+import { supabase } from '../lib/supabase'
 import Spinner from '../components/Spinner'
 import Field from '../components/Field'
 import * as I from '../components/Icons'
@@ -15,6 +16,39 @@ export default function SettingsPage() {
   const [pwForm, setPwForm]           = useState({ newPw:'', confirmPw:'', showPw: false })
   const [notifPerm, setNotifPerm]     = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported')
   const [saving, setSaving]           = useState(false)
+  const [teamMembers, setTeamMembers] = useState([])
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteSaving, setInviteSaving] = useState(false)
+
+  useEffect(() => { loadTeam() }, [user])
+
+  async function loadTeam() {
+    if (!user) return
+    const { data } = await supabase.from('team_invites').select('*').eq('owner_id', user.id).order('created_at')
+    setTeamMembers(data ?? [])
+  }
+
+  async function handleInvite(e) {
+    e.preventDefault()
+    if (!inviteEmail.trim()) return
+    setInviteSaving(true)
+    const { error } = await supabase.from('team_invites').insert({ owner_id: user.id, email: inviteEmail.trim() })
+    setInviteSaving(false)
+    if (error) {
+      if (error.code === '23505') toast.error('อีเมลนี้ถูกเชิญไปแล้ว')
+      else toast.error(`เชิญไม่สำเร็จ: ${error.message}`)
+    } else {
+      toast.success('ส่งคำเชิญสำเร็จ — แจ้งให้พนักงานสมัครด้วยอีเมลนี้')
+      setInviteEmail('')
+      loadTeam()
+    }
+  }
+
+  async function handleRemoveMember(id) {
+    await supabase.from('team_invites').delete().eq('id', id)
+    toast.success('ลบสมาชิกออกแล้ว')
+    loadTeam()
+  }
 
   useEffect(() => {
     if (profile) setProfileForm({ name: profile.name??'', initials: profile.initials??'', role: profile.role??'staff', shop_name: profile.shop_name??'' })
@@ -184,6 +218,49 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+
+        {/* Team */}
+        {!profile?.manager_id && (
+          <section className="card" style={{ gridColumn: '1 / -1' }}>
+            <div className="card-header"><h2 className="card-title">👥 ทีมงาน</h2></div>
+            <div className="settings-card-body">
+              <p className="settings-hint">เชิญพนักงานให้เข้าถึงข้อมูลร้านของคุณ — ให้พวกเขาสมัครบัญชีด้วยอีเมลที่ระบุ แล้วติดต่อแอดมินเพื่อเปิดสิทธิ์</p>
+              <form onSubmit={handleInvite} style={{ display:'flex', gap:8, marginTop:12 }}>
+                <input
+                  type="email"
+                  placeholder="อีเมลพนักงาน"
+                  value={inviteEmail}
+                  onChange={e => setInviteEmail(e.target.value)}
+                  style={{ flex:1 }}
+                />
+                <button type="submit" className="btn btn-primary" disabled={inviteSaving || !inviteEmail.trim()}>
+                  {inviteSaving ? <Spinner size={13} color="#fff" /> : 'เชิญ'}
+                </button>
+              </form>
+              {teamMembers.length > 0 && (
+                <div style={{ marginTop:16, display:'flex', flexDirection:'column', gap:8 }}>
+                  {teamMembers.map(m => (
+                    <div key={m.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:'var(--bg)', borderRadius:8, border:'1px solid var(--border)' }}>
+                      <div style={{ width:32, height:32, borderRadius:'50%', background:'var(--accent-soft)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'var(--accent-ink)', flexShrink:0 }}>
+                        {m.email[0].toUpperCase()}
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.email}</div>
+                        <div style={{ fontSize:11, color:'var(--muted)' }}>{m.status === 'accepted' ? '✅ เข้าร่วมแล้ว' : '⏳ รอการยืนยัน'}</div>
+                      </div>
+                      <button className="icon-btn danger" title="ลบออก" onClick={() => handleRemoveMember(m.id)}>
+                        <I.X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {teamMembers.length === 0 && (
+                <p style={{ color:'var(--muted)', fontSize:13, marginTop:12 }}>ยังไม่มีสมาชิกในทีม</p>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* App info */}
         <section className="card" style={{ gridColumn: '1 / -1' }}>

@@ -57,6 +57,10 @@ export default function Sidebar({ open, lowCount, onClose }) {
         ))}
       </nav>
 
+      <NavLink to="/billing" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={{ margin: '0 8px 2px' }}>
+        <I.Chart size={15} />
+        <span>แพ็กเกจ</span>
+      </NavLink>
       {user.role === 'admin' && (
         <NavLink to="/admin" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={{ margin: '0 8px 4px' }}>
           <I.Gear size={15} />

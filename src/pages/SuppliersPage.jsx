@@ -13,7 +13,7 @@ const EMPTY = { code:'', name:'', contact:'', phone:'', email:'', note:'' }
 
 export default function SuppliersPage() {
   const { toast } = useToast()
-  const { user } = useAuth()
+  const { user, ownerId } = useAuth()
   const [sups, setSups]         = useState([])
   const [counts, setCounts]     = useState({})
   const [loading, setLoading]   = useState(true)
@@ -63,7 +63,7 @@ export default function SuppliersPage() {
         if (error) throw error
         toast.success('แก้ไขซัพพลายเออร์สำเร็จ')
       } else {
-        const { error } = await supabase.from('suppliers').insert({ ...payload, owner_id: user?.id })
+        const { error } = await supabase.from('suppliers').insert({ ...payload, owner_id: ownerId })
         if (error) throw error
         toast.success('เพิ่มซัพพลายเออร์สำเร็จ')
       }

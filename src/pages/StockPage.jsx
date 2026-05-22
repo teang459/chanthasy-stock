@@ -18,7 +18,7 @@ const EMPTY = { sku:'',name:'',name_sci:'',category_id:'',supplier_id:'',stock:0
 
 export default function StockPage() {
   const { toast } = useToast()
-  const { user } = useAuth()
+  const { user, ownerId } = useAuth()
   const { symbol } = useCurrency()
   const location = useLocation()
 
@@ -138,7 +138,7 @@ export default function StockPage() {
         if (error) throw error
         toast.success('แก้ไขข้อมูลสำเร็จ')
       } else {
-        const { error } = await supabase.from('plants').insert({ ...payload, owner_id: user.id })
+        const { error } = await supabase.from('plants').insert({ ...payload, owner_id: ownerId })
         if (error) throw error
         toast.success('เพิ่มต้นไม้สำเร็จ')
       }

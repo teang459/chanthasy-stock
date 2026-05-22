@@ -16,6 +16,7 @@ import ReportsPage    from './pages/ReportsPage'
 import SettingsPage   from './pages/SettingsPage'
 import SignUpPage     from './pages/SignUpPage'
 import AdminPage     from './pages/AdminPage'
+import BillingPage   from './pages/BillingPage'
 import TermsPage     from './pages/TermsPage'
 import PrivacyPage   from './pages/PrivacyPage'
 import Spinner from './components/Spinner'
@@ -49,6 +50,7 @@ export default function App() {
               <Route path="reports"    element={<ReportsPage />} />
               <Route path="settings"   element={<SettingsPage />} />
               <Route path="admin"      element={<AdminPage />} />
+              <Route path="billing"    element={<BillingPage />} />
               <Route path="terms"      element={<TermsPage />} />
               <Route path="privacy"    element={<PrivacyPage />} />
             </Route>

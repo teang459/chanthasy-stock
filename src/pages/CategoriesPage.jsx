@@ -23,7 +23,7 @@ const HUES = [
 
 export default function CategoriesPage() {
   const { toast } = useToast()
-  const { user } = useAuth()
+  const { user, ownerId } = useAuth()
   const [cats, setCats]         = useState([])
   const [counts, setCounts]     = useState({})
   const [loading, setLoading]   = useState(true)
@@ -71,7 +71,7 @@ export default function CategoriesPage() {
         if (error) throw error
         toast.success('แก้ไขหมวดหมู่สำเร็จ')
       } else {
-        const { error } = await supabase.from('categories').insert({ ...payload, owner_id: user?.id })
+        const { error } = await supabase.from('categories').insert({ ...payload, owner_id: ownerId })
         if (error) throw error
         toast.success('เพิ่มหมวดหมู่สำเร็จ')
       }

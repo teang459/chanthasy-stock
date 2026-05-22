@@ -56,8 +56,10 @@ export function AuthProvider({ children }) {
     if (user) await fetchProfile(user.id)
   }
 
+  const ownerId = profile?.manager_id ?? user?.id
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, login, logout, updateProfile, changePassword, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, login, logout, updateProfile, changePassword, refreshProfile, ownerId }}>
       {children}
     </AuthContext.Provider>
   )
