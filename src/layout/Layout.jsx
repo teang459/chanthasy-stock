@@ -43,9 +43,8 @@ export default function Layout() {
   }, [adminViewingOwnerId])
 
   async function fetchLow() {
-    const q = supabase.from('plants').select('id,name,stock,min_stock')
-    if (ownerId) q.eq('owner_id', ownerId)
-    const { data } = await q
+    if (!ownerId) { setLowPlants([]); return }
+    const { data } = await supabase.from('plants').select('id,name,stock,min_stock').eq('owner_id', ownerId)
     const low = (data ?? []).filter(p => statusOf(p) !== 'ok')
     setLowPlants(low)
   }

@@ -10,6 +10,7 @@ import StatusBadge from '../components/StatusBadge'
 import StockBar from '../components/StockBar'
 import EmptyState from '../components/EmptyState'
 import Spinner from '../components/Spinner'
+import { SkeletonTable } from '../components/Skeleton'
 import * as I from '../components/Icons'
 
 export default function LowStockPage() {
@@ -29,9 +30,11 @@ export default function LowStockPage() {
   }, [ownerId])
 
   async function load() {
+    if (!ownerId) return
     const { data, error } = await supabase
       .from('plants')
       .select('*, categories(name_th,hue)')
+      .eq('owner_id', ownerId)
       .order('stock')
     if (error) { toast.error(`โหลดข้อมูลไม่สำเร็จ: ${userMessage(error)}`); setLoading(false); return }
     setPlants((data ?? []).filter(p => statusOf(p) !== 'ok'))
@@ -41,7 +44,14 @@ export default function LowStockPage() {
   const out = plants.filter(p => statusOf(p) === 'out')
   const low = plants.filter(p => statusOf(p) === 'low')
 
-  if (loading) return <div className="page-center"><Spinner size={32} /></div>
+  if (loading) {
+    return (
+      <div className="page">
+        <div className="page-header"><div><h1 className="page-title">แจ้งเตือนสต็อก</h1><p className="page-sub">กำลังโหลด...</p></div></div>
+        <SkeletonTable rows={5} cols={5} />
+      </div>
+    )
+  }
 
   return (
     <div className="page">

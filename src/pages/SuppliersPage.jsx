@@ -6,6 +6,7 @@ import Modal from '../components/Modal'
 import Confirm from '../components/Confirm'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
+import { SkeletonTable } from '../components/Skeleton'
 import Field from '../components/Field'
 import * as I from '../components/Icons'
 import { userMessage } from '../lib/errors'
@@ -28,12 +29,13 @@ export default function SuppliersPage() {
   const [errors, setErrors]     = useState({})
   const [saving, setSaving]     = useState(false)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { if (ownerId) load() }, [ownerId])
 
   async function load() {
+    if (!ownerId) return
     const [{ data: s }, { data: p }] = await Promise.all([
-      supabase.from('suppliers').select('*').order('name'),
-      supabase.from('plants').select('supplier_id'),
+      supabase.from('suppliers').select('*').eq('owner_id', ownerId).order('name'),
+      supabase.from('plants').select('supplier_id').eq('owner_id', ownerId),
     ])
     setSups(s ?? [])
     const cnt = {}
@@ -94,7 +96,14 @@ export default function SuppliersPage() {
     return sups.filter(s => s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q) || s.contact?.toLowerCase().includes(q))
   }, [sups, search])
 
-  if (loading) return <div className="page-center"><Spinner size={32} /></div>
+  if (loading) {
+    return (
+      <div className="page">
+        <div className="page-header"><div><h1 className="page-title">ซัพพลายเออร์</h1><p className="page-sub">กำลังโหลด...</p></div></div>
+        <SkeletonTable rows={6} cols={6} />
+      </div>
+    )
+  }
 
   return (
     <div className="page">

@@ -37,12 +37,13 @@ export default function CategoriesPage() {
   const [errors, setErrors]     = useState({})
   const [saving, setSaving]     = useState(false)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { if (ownerId) load() }, [ownerId])
 
   async function load() {
+    if (!ownerId) return
     const [{ data: c }, { data: p }] = await Promise.all([
-      supabase.from('categories').select('*').order('name_th'),
-      supabase.from('plants').select('category_id'),
+      supabase.from('categories').select('*').eq('owner_id', ownerId).order('name_th'),
+      supabase.from('plants').select('category_id').eq('owner_id', ownerId),
     ])
     setCats(c ?? [])
     const cnt = {}

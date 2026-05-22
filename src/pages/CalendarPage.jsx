@@ -48,7 +48,8 @@ export default function CalendarPage() {
   async function load() {
     const from = `${year}-${String(month+1).padStart(2,'0')}-01`
     const to   = `${year}-${String(month+1).padStart(2,'0')}-${calDaysInMonth(year,month)}`
-    const { data, error } = await supabase.from('calendar_events').select('*').gte('date', from).lte('date', to).order('date').order('time', { nullsFirst: true })
+    if (!ownerId) return
+    const { data, error } = await supabase.from('calendar_events').select('*').eq('owner_id', ownerId).gte('date', from).lte('date', to).order('date').order('time', { nullsFirst: true })
     if (error) { toast.error('โหลดไม่สำเร็จ'); setLoading(false); return }
     setEvents(data ?? [])
     setLoading(false)

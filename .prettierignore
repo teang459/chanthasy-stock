@@ -1,0 +1,7 @@
+dist
+node_modules
+tree-stock-enterprise
+supabase/functions
+supabase/.temp
+package-lock.json
+*.md

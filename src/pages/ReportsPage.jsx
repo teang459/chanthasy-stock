@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
+import { useAuth } from '../contexts/AuthContext'
 import { statusOf, fmtCurrency, downloadCSV, fmtDate } from '../lib/utils'
 import { userMessage } from '../lib/errors'
 import { useCurrency } from '../contexts/CurrencyContext'
 import Spinner from '../components/Spinner'
+import { SkeletonStats } from '../components/Skeleton'
 import * as I from '../components/Icons'
 
 const TYPE_LABEL = { in: 'รับเข้า', out: 'จ่ายออก', adjust: 'ปรับ', new: 'เพิ่ม', delete: 'ลบ', rename: 'เปลี่ยนชื่อ' }
@@ -26,19 +28,21 @@ function isoDaysAgo(days) {
 
 export default function ReportsPage() {
   const { toast } = useToast()
+  const { ownerId } = useAuth()
   const { symbol } = useCurrency()
   const [plants, setPlants]   = useState([])
   const [moves, setMoves]     = useState([])
   const [loading, setLoading] = useState(true)
   const [range, setRange]     = useState('30')
 
-  useEffect(() => { load() }, [range])
+  useEffect(() => { if (ownerId) load() }, [range, ownerId])
 
   async function load() {
+    if (!ownerId) return
     setLoading(true)
     try {
-      const plantsQ = supabase.from('plants').select('*, categories(name_th,hue)')
-      let movesQ = supabase.from('movements').select('*, plants(name,sku)').order('created_at', { ascending: false }).limit(5000)
+      const plantsQ = supabase.from('plants').select('*, categories(name_th,hue)').eq('owner_id', ownerId)
+      let movesQ = supabase.from('movements').select('*, plants(name,sku)').eq('owner_id', ownerId).order('created_at', { ascending: false }).limit(5000)
       if (range !== 'all') movesQ = movesQ.gte('created_at', isoDaysAgo(Number(range)))
       const [{ data: p, error: pErr }, { data: m, error: mErr }] = await Promise.all([plantsQ, movesQ])
       if (pErr || mErr) throw (pErr || mErr)
@@ -93,7 +97,14 @@ export default function ReportsPage() {
     toast.success('ส่งออกสำเร็จ')
   }
 
-  if (loading) return <div className="page-center"><Spinner size={32} /></div>
+  if (loading) {
+    return (
+      <div className="page">
+        <div className="page-header"><div><h1 className="page-title">รายงาน</h1><p className="page-sub">กำลังโหลด...</p></div></div>
+        <SkeletonStats count={6} />
+      </div>
+    )
+  }
 
   const maxVal = Math.max(...stats.catRows.map(c => c.value), 1)
 

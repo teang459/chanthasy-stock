@@ -27,9 +27,10 @@ export default function DashboardPage() {
   }, [ownerId])
 
   async function fetchAll() {
+    if (!ownerId) return
     const [{ data: p }, { data: m }] = await Promise.all([
-      supabase.from('plants').select('*,categories(name_th,hue)'),
-      supabase.from('movements').select('*,plants(name,sku)').order('created_at', { ascending: false }).limit(10),
+      supabase.from('plants').select('*,categories(name_th,hue)').eq('owner_id', ownerId),
+      supabase.from('movements').select('*,plants(name,sku)').eq('owner_id', ownerId).order('created_at', { ascending: false }).limit(10),
     ])
     setPlants(p ?? [])
     setMoves(m ?? [])

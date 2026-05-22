@@ -51,8 +51,8 @@ export default function StockPage() {
   const [imgUploading, setImgUploading] = useState(false)
 
   useEffect(() => {
-    load()
     if (!ownerId) return
+    load()
     const ch = supabase.channel(`stock-page-${ownerId}`)
       .on('postgres_changes', { event:'*', schema:'public', table:'plants', filter: `owner_id=eq.${ownerId}` }, loadPlants)
       .subscribe()
@@ -66,19 +66,23 @@ export default function StockPage() {
   }
 
   async function loadPlants() {
+    if (!ownerId) return
     const { data, error } = await supabase
       .from('plants')
       .select('*, categories(id,name_th,hue,code), suppliers(id,name,code)')
+      .eq('owner_id', ownerId)
       .order('name')
-    if (error) { toast.error('โหลดข้อมูลไม่สำเร็จ'); return }
+    if (error) { toast.error(`โหลดข้อมูลไม่สำเร็จ: ${userMessage(error)}`); return }
     setPlants(data ?? [])
   }
   async function loadCats() {
-    const { data } = await supabase.from('categories').select('*').order('name_th')
+    if (!ownerId) return
+    const { data } = await supabase.from('categories').select('*').eq('owner_id', ownerId).order('name_th')
     setCats(data ?? [])
   }
   async function loadSups() {
-    const { data } = await supabase.from('suppliers').select('*').order('name')
+    if (!ownerId) return
+    const { data } = await supabase.from('suppliers').select('*').eq('owner_id', ownerId).order('name')
     setSups(data ?? [])
   }
 

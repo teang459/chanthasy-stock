@@ -1,16 +1,19 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
+import { useAuth } from '../contexts/AuthContext'
 import { fmtDateTime, downloadCSV } from '../lib/utils'
 import { userMessage } from '../lib/errors'
 import EmptyState from '../components/EmptyState'
 import Spinner from '../components/Spinner'
+import { SkeletonTable } from '../components/Skeleton'
 import * as I from '../components/Icons'
 
 const TYPE_LABEL = { in:'รับเข้า', out:'จ่ายออก', adjust:'ปรับ', new:'เพิ่มสินค้า', delete:'ลบสินค้า', rename:'เปลี่ยนชื่อ' }
 
 export default function MovementsPage() {
   const { toast } = useToast()
+  const { ownerId } = useAuth()
   const [moves, setMoves]         = useState([])
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
@@ -18,12 +21,21 @@ export default function MovementsPage() {
   const [page, setPage]           = useState(1)
   const PER_PAGE = 30
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    if (!ownerId) return
+    load()
+    const ch = supabase.channel(`movements-${ownerId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'movements', filter: `owner_id=eq.${ownerId}` }, load)
+      .subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [ownerId])
 
   async function load() {
+    if (!ownerId) return
     const { data, error } = await supabase
       .from('movements')
       .select('*, plants(id,name,sku)')
+      .eq('owner_id', ownerId)
       .order('created_at', { ascending: false })
       .limit(500)
     if (error) { toast.error(`โหลดไม่สำเร็จ: ${userMessage(error)}`); setLoading(false); return }
@@ -53,7 +65,14 @@ export default function MovementsPage() {
     toast.success('ส่งออก CSV สำเร็จ')
   }
 
-  if (loading) return <div className="page-center"><Spinner size={32} /></div>
+  if (loading) {
+    return (
+      <div className="page">
+        <div className="page-header"><div><h1 className="page-title">ประวัติเคลื่อนไหว</h1><p className="page-sub">กำลังโหลด...</p></div></div>
+        <SkeletonTable rows={8} cols={5} />
+      </div>
+    )
+  }
 
   return (
     <div className="page">
