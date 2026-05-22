@@ -14,7 +14,12 @@ import SuppliersPage  from './pages/SuppliersPage'
 import CalendarPage   from './pages/CalendarPage'
 import ReportsPage    from './pages/ReportsPage'
 import SettingsPage   from './pages/SettingsPage'
+import SignUpPage     from './pages/SignUpPage'
+import AdminPage     from './pages/AdminPage'
+import TermsPage     from './pages/TermsPage'
+import PrivacyPage   from './pages/PrivacyPage'
 import Spinner from './components/Spinner'
+import ErrorBoundary from './components/ErrorBoundary'
 
 function Guard({ children }) {
   const { user, loading } = useAuth()
@@ -25,12 +30,14 @@ function Guard({ children }) {
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <AuthProvider>
       <ToastProvider>
       <CurrencyProvider>
         <HashRouter>
           <Routes>
-            <Route path="/login" element={<LoginPage />} />
+            <Route path="/login"  element={<LoginPage />} />
+            <Route path="/signup" element={<SignUpPage />} />
             <Route path="/" element={<Guard><Layout /></Guard>}>
               <Route index            element={<DashboardPage />} />
               <Route path="stock"      element={<StockPage />} />
@@ -41,6 +48,9 @@ export default function App() {
               <Route path="calendar"   element={<CalendarPage />} />
               <Route path="reports"    element={<ReportsPage />} />
               <Route path="settings"   element={<SettingsPage />} />
+              <Route path="admin"      element={<AdminPage />} />
+              <Route path="terms"      element={<TermsPage />} />
+              <Route path="privacy"    element={<PrivacyPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -48,5 +58,6 @@ export default function App() {
       </CurrencyProvider>
       </ToastProvider>
     </AuthProvider>
+    </ErrorBoundary>
   )
 }

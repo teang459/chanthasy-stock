@@ -318,9 +318,10 @@ tbody tr:hover { background: var(--surface-2) }
   white-space: nowrap;
 }
 .dot { width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0 }
-.badge--ok  { background:var(--accent-soft); color:var(--accent-ink) }
-.badge--low { background:var(--amber-soft);  color:var(--amber-ink)  }
-.badge--out { background:var(--danger-soft); color:var(--danger-ink) }
+.badge--ok   { background:var(--accent-soft); color:var(--accent-ink) }
+.badge--low  { background:var(--amber-soft);  color:var(--amber-ink)  }
+.badge--out  { background:var(--danger-soft); color:var(--danger-ink) }
+.badge--info { background:oklch(92% 0.04 250); color:oklch(35% 0.10 250) }
 
 /* Stock bar */
 .stock-bar { display:flex; align-items:center; gap:8px; min-width:100px }

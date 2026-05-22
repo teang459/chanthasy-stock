@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 import * as I from '../components/Icons'
 import Spinner from '../components/Spinner'
 
@@ -11,6 +12,11 @@ export default function LoginPage() {
   const [showPw, setShowPw]     = useState(false)
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
+
+  const [resetMode, setResetMode]   = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetDone, setResetDone]   = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
 
   if (user) return <Navigate to="/" replace />
 
@@ -27,6 +33,90 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleReset(e) {
+    e.preventDefault()
+    if (!resetEmail.trim()) return
+    setResetLoading(true)
+    const { error: err } = await supabase.auth.resetPasswordForEmail(resetEmail.trim())
+    setResetLoading(false)
+    if (err) {
+      setError(err.message)
+    } else {
+      setResetDone(true)
+    }
+  }
+
+  if (resetMode) {
+    return (
+      <div className="login-shell">
+        <div className="login-card">
+          <div className="login-brand">
+            <div className="brand-mark" style={{ width: 48, height: 48, fontSize: 20 }}>CS</div>
+            <div>
+              <div className="brand-name" style={{ fontSize: 20 }}>Chanthasy</div>
+              <div className="brand-sub">รีเซ็ตรหัสผ่าน</div>
+            </div>
+          </div>
+
+          {resetDone ? (
+            <div style={{ textAlign: 'center', padding: '12px 0' }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>📧</div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>ส่งลิงก์แล้ว</div>
+              <div style={{ color: 'var(--muted)', fontSize: 13 }}>
+                ตรวจสอบอีเมล <strong>{resetEmail}</strong> แล้วคลิกลิงก์เพื่อตั้งรหัสผ่านใหม่
+              </div>
+              <button
+                className="btn btn-ghost"
+                style={{ marginTop: 20, width: '100%', justifyContent: 'center' }}
+                onClick={() => { setResetMode(false); setResetDone(false); setError('') }}
+              >
+                กลับไปหน้าเข้าสู่ระบบ
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleReset} noValidate>
+              <div className="field">
+                <span className="field-label">อีเมล</span>
+                <input
+                  type="email"
+                  placeholder="admin@chanthasy.com"
+                  value={resetEmail}
+                  onChange={e => setResetEmail(e.target.value)}
+                  autoComplete="email"
+                  autoFocus
+                />
+              </div>
+
+              {error && (
+                <div className="login-error">
+                  <I.Warning size={13} /> {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="btn btn-primary"
+                style={{ width: '100%', marginTop: 20, justifyContent: 'center', gap: 8 }}
+                disabled={resetLoading}
+              >
+                {resetLoading ? <Spinner size={16} color="#fff" /> : 'ส่งลิงก์รีเซ็ตรหัสผ่าน'}
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ width: '100%', marginTop: 8, justifyContent: 'center' }}
+                onClick={() => { setResetMode(false); setError('') }}
+              >
+                ยกเลิก
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -85,6 +175,20 @@ export default function LoginPage() {
             {loading ? <Spinner size={16} color="#fff" /> : 'เข้าสู่ระบบ'}
           </button>
         </form>
+
+        <div style={{ textAlign: 'center', marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ fontSize: 13, color: 'var(--muted)', padding: '4px 8px' }}
+            onClick={() => { setResetMode(true); setResetEmail(email); setError('') }}
+          >
+            ลืมรหัสผ่าน?
+          </button>
+          <Link to="/signup" style={{ fontSize: 13, color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}>
+            สมัครใช้งาน
+          </Link>
+        </div>
 
         <div className="login-hint">
           <I.Info size={12} />

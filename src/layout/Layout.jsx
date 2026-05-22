@@ -2,14 +2,24 @@ import React, { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { statusOf } from '../lib/utils'
+import { useAuth } from '../contexts/AuthContext'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import MobileNav from './MobileNav'
+import OnboardingWizard from '../components/OnboardingWizard'
 
 export default function Layout() {
+  const { profile } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showNotif, setShowNotif]   = useState(false)
   const [lowPlants, setLowPlants]   = useState([])
+  const [showOnboarding, setShowOnboarding] = useState(false)
+
+  useEffect(() => {
+    if (profile && !profile.shop_name && !localStorage.getItem('onboarding_done')) {
+      setShowOnboarding(true)
+    }
+  }, [profile])
 
   useEffect(() => {
     fetchLow()
@@ -56,6 +66,10 @@ export default function Layout() {
       </div>
 
       <MobileNav lowCount={lowPlants.length} />
+
+      {showOnboarding && (
+        <OnboardingWizard onDone={() => setShowOnboarding(false)} />
+      )}
     </div>
   )
 }

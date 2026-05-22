@@ -108,7 +108,7 @@ export default function Topbar({ onMenuToggle, lowCount, notifications, onNotifT
                 else toast.info('ยังไม่ได้อนุญาตการแจ้งเตือน')
               }}
             >
-              {Notification.permission === 'granted' ? 'การแจ้งเตือนเปิดอยู่แล้ว' : 'เปิดใช้งานการแจ้งเตือน'}
+              {typeof Notification !== 'undefined' && Notification.permission === 'granted' ? 'การแจ้งเตือนเปิดอยู่แล้ว' : 'เปิดใช้งานการแจ้งเตือน'}
             </button>
           </div>
         </div>

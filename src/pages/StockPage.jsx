@@ -14,7 +14,7 @@ import StockBar from '../components/StockBar'
 import Field from '../components/Field'
 import * as I from '../components/Icons'
 
-const EMPTY = { sku:'',name:'',name_sci:'',category_id:'',supplier_id:'',stock:0,min_stock:5,price:0,cost:'',note:'' }
+const EMPTY = { sku:'',name:'',name_sci:'',category_id:'',supplier_id:'',stock:0,min_stock:5,price:0,cost:'',note:'',image_url:'' }
 
 export default function StockPage() {
   const { toast } = useToast()
@@ -41,6 +41,9 @@ export default function StockPage() {
   const [saving, setSaving] = useState(false)
 
   const [adjForm, setAdjForm] = useState({ type:'in', qty:1, note:'' })
+  const [page, setPage] = useState(0)
+  const PAGE_SIZE = 50
+  const [imgUploading, setImgUploading] = useState(false)
 
   useEffect(() => {
     load()
@@ -91,13 +94,26 @@ export default function StockPage() {
   }
 
   function openEdit(p) {
-    setForm({ sku:p.sku, name:p.name, name_sci:p.name_sci??'', category_id:p.category_id??'', supplier_id:p.supplier_id??'', stock:p.stock, min_stock:p.min_stock, price:p.price, cost:p.cost??'', note:p.note??'' })
+    setForm({ sku:p.sku, name:p.name, name_sci:p.name_sci??'', category_id:p.category_id??'', supplier_id:p.supplier_id??'', stock:p.stock, min_stock:p.min_stock, price:p.price, cost:p.cost??'', note:p.note??'', image_url:p.image_url??'' })
     setErrors({})
     setEditItem(p)
     setShowForm(true)
   }
 
   function setF(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  async function handleImageUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImgUploading(true)
+    const ext = file.name.split('.').pop()
+    const path = `${user.id}/${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('plant-images').upload(path, file, { upsert: true })
+    if (error) { toast.error('อัปโหลดรูปไม่สำเร็จ'); setImgUploading(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('plant-images').getPublicUrl(path)
+    setF('image_url', publicUrl)
+    setImgUploading(false)
+  }
 
   async function handleSave(e) {
     e.preventDefault()
@@ -114,6 +130,7 @@ export default function StockPage() {
         price: Number(form.price),
         cost: form.cost !== '' ? Number(form.cost) : null,
         note: form.note?.trim() || null,
+        image_url: form.image_url?.trim() || null,
         updated_at: new Date().toISOString(),
       }
       if (editItem) {
@@ -191,6 +208,11 @@ export default function StockPage() {
     return list
   }, [plants, search, catFilter, sortField, sortDir])
 
+  useEffect(() => { setPage(0) }, [search, catFilter, sortField, sortDir])
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+  const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
   function handleExport() {
     const rows = [
       ['SKU','ชื่อต้นไม้','ชื่อวิทยาศาสตร์','หมวดหมู่','สต็อก','ขั้นต่ำ','ราคา','ต้นทุน','สถานะ'],
@@ -211,7 +233,10 @@ export default function StockPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">รายการสต็อก</h1>
-          <p className="page-sub">{filtered.length} รายการ</p>
+          <p className="page-sub">
+            {filtered.length} รายการ
+            {totalPages > 1 && ` · หน้า ${page + 1}/${totalPages}`}
+          </p>
         </div>
         <div className="page-actions">
           <button className="btn btn-ghost" onClick={handleExport}><I.Download size={13} /> ส่งออก</button>
@@ -237,6 +262,7 @@ export default function StockPage() {
         <div className="table-wrap">
           <table>
             <thead><tr>
+              <th style={{ width: 44 }}></th>
               <th className="sortable" onClick={() => toggleSort('sku')}>SKU <SortIcon f="sku" /></th>
               <th className="sortable" onClick={() => toggleSort('name')}>ชื่อต้นไม้ <SortIcon f="name" /></th>
               <th>หมวดหมู่</th>
@@ -246,8 +272,14 @@ export default function StockPage() {
               <th style={{ width: 90 }}>จัดการ</th>
             </tr></thead>
             <tbody>
-              {filtered.map(p => (
+              {paged.map(p => (
                 <tr key={p.id}>
+                  <td>
+                    {p.image_url
+                      ? <img src={p.image_url} alt={p.name} style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', display: 'block' }} />
+                      : <div style={{ width: 36, height: 36, borderRadius: 6, background: 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🌿</div>
+                    }
+                  </td>
                   <td className="mono text-sm">{p.sku}</td>
                   <td>
                     <div className="plant-name">{p.name}</div>
@@ -274,6 +306,14 @@ export default function StockPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 16 }}>
+          <button className="btn btn-ghost" disabled={page === 0} onClick={() => setPage(p => p - 1)}>← ก่อนหน้า</button>
+          <span style={{ fontSize: 13, color: 'var(--muted)' }}>{page + 1} / {totalPages}</span>
+          <button className="btn btn-ghost" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>ถัดไป →</button>
         </div>
       )}
 
@@ -316,6 +356,23 @@ export default function StockPage() {
             </Field>
             <Field label="หมายเหตุ" fullWidth>
               <textarea rows={2} value={form.note} onChange={e => setF('note', e.target.value)} placeholder="หมายเหตุ..." />
+            </Field>
+            <Field label="รูปภาพ" fullWidth>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                {form.image_url && (
+                  <img src={form.image_url} alt="preview" style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)', flexShrink: 0 }} />
+                )}
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '7px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13 }}>
+                    {imgUploading ? <Spinner size={13} /> : '📷 เลือกรูป'}
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageUpload} disabled={imgUploading} />
+                  </label>
+                  {form.image_url && (
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px', marginLeft: 8, color: 'var(--muted)' }}
+                      onClick={() => setF('image_url', '')}>ลบรูป</button>
+                  )}
+                </div>
+              </div>
             </Field>
             <div className="form-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>ยกเลิก</button>

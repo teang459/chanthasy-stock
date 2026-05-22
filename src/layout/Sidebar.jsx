@@ -1,5 +1,5 @@
 import React from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, Link } from 'react-router-dom'
 import * as I from '../components/Icons'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -56,6 +56,17 @@ export default function Sidebar({ open, lowCount, onClose }) {
           </NavLink>
         ))}
       </nav>
+
+      {user.role === 'admin' && (
+        <NavLink to="/admin" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={{ margin: '0 8px 4px' }}>
+          <I.Gear size={15} />
+          <span>Admin Panel</span>
+        </NavLink>
+      )}
+      <div style={{ display: 'flex', gap: 12, padding: '6px 16px 4px', fontSize: 11, color: 'var(--muted)' }}>
+        <Link to="/terms" style={{ color: 'var(--muted)', textDecoration: 'none' }} onClick={onClose}>ข้อกำหนด</Link>
+        <Link to="/privacy" style={{ color: 'var(--muted)', textDecoration: 'none' }} onClick={onClose}>นโยบาย</Link>
+      </div>
 
       <div className="sidebar-footer">
         <div className="avatar">{user.initials?.slice(0, 2) || '??'}</div>

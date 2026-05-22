@@ -18,7 +18,7 @@ export default function ReportsPage() {
   async function load() {
     const [{ data: p }, { data: m }] = await Promise.all([
       supabase.from('plants').select('*, categories(name_th,hue)'),
-      supabase.from('movements').select('*, plants(name,sku)').order('created_at', { ascending: false }).limit(200),
+      supabase.from('movements').select('*, plants(name,sku)').order('created_at', { ascending: false }).limit(2000),
     ])
     setPlants(p ?? [])
     setMoves(m ?? [])
