@@ -50,10 +50,12 @@ export default function Topbar({ onMenuToggle, lowCount, notifications, onNotifT
       </button>
 
       <div className="crumbs">
-        <span className="crumbs-shop">{shopName}</span>
+        <span>Chanthasy</span>
         <I.Chevron size={12} />
         <span className="here">{here}</span>
       </div>
+
+      <div className="topbar-shopname">{shopName}</div>
 
       <div className="topbar-search">
         <I.Search size={13} className="search-icon" />

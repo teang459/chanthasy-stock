@@ -163,7 +163,12 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
   flex: 1; min-width: 0;
 }
 .crumbs .here { color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-.crumbs-shop { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px }
+.topbar-shopname {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  font-size: 15px; font-weight: 700; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 260px; pointer-events: none;
+}
 .topbar-search {
   display: flex; align-items: center; gap: 6px;
   background: var(--surface-2);
@@ -691,6 +696,7 @@ tbody tr:hover { background: var(--surface-2) }
     left: 0; top: 0; bottom: 0;
     transform: translateX(-100%);
     box-shadow: var(--shadow-lg);
+    transition: transform 0.25s ease;
   }
   .sidebar.open { transform: translateX(0) }
   .sidebar-close { display: grid; position: absolute; top: 12px; right: 10px; z-index: 1 }
@@ -704,6 +710,7 @@ tbody tr:hover { background: var(--surface-2) }
 
   /* Topbar */
   .crumbs { display: none }
+  .topbar-shopname { font-size: 14px; max-width: 160px }
   .topbar-search { flex: 1 }
   .kbd { display: none }
 
