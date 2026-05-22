@@ -163,7 +163,8 @@ export default function StockPage() {
       if (e1) throw e1
 
       const delta = adjForm.type === 'adjust' ? (qty - adjItem.stock) : (adjForm.type === 'in' ? qty : -qty)
-      await supabase.from('movements').insert({ plant_id: adjItem.id, type: adjForm.type, qty: delta, note: adjForm.note?.trim() || null, created_by: user?.id, owner_id: user?.id })
+      const { error: e2 } = await supabase.from('movements').insert({ plant_id: adjItem.id, type: adjForm.type, qty: delta, note: adjForm.note?.trim() || null, created_by: user?.id, owner_id: user?.id })
+      if (e2) throw e2
 
       toast.success('ปรับสต็อกสำเร็จ')
       setAdjItem(null)
