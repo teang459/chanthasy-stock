@@ -70,6 +70,7 @@ export default function FinancePage() {
   const [form, setForm]         = useState(EMPTY)
   const [errors, setErrors]     = useState({})
   const [saving, setSaving]     = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   // Data loading — separate from realtime subscription
   useEffect(() => {
@@ -116,7 +117,7 @@ export default function FinancePage() {
     })()
 
     return () => { cancelled = true; clearTimeout(timeout) }
-  }, [ownerId, range])
+  }, [ownerId, range, reloadKey])
 
   // Realtime — separate so its failure doesn't block load
   useEffect(() => {
@@ -125,8 +126,7 @@ export default function FinancePage() {
     try {
       ch = supabase.channel(`finance-${ownerId}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'finance_entries', filter: `owner_id=eq.${ownerId}` }, () => {
-          // Trigger reload by toggling range (cheap)
-          setRange(r => r)
+          setReloadKey(k => k + 1)
         })
         .subscribe()
     } catch (err) {
@@ -264,7 +264,7 @@ export default function FinancePage() {
       }
       setShowForm(false)
       // Trigger reload
-      setRange(r => r)
+      setReloadKey(k => k + 1)
     } catch (err) {
       toast.error(userMessage(err))
     } finally {
@@ -278,7 +278,7 @@ export default function FinancePage() {
       const { error } = await supabase.from('finance_entries').delete().eq('id', row._id)
       if (error) throw error
       toast.success('ลบรายการสำเร็จ')
-      setRange(r => r)
+      setReloadKey(k => k + 1)
     } catch (err) {
       toast.error(userMessage(err))
     }
@@ -321,7 +321,7 @@ export default function FinancePage() {
         <div className="login-error" style={{ marginTop: 16 }}>
           <I.Warning size={13} /> {loadError}
         </div>
-        <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => setRange(r => r)}>
+        <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => setReloadKey(k => k + 1)}>
           ลองอีกครั้ง
         </button>
       </div>

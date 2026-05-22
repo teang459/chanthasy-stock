@@ -4,51 +4,66 @@ import { supabase } from '../lib/supabase'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [isRecoveryMode, setIsRecoveryMode] = useState(false)
-  const [adminViewingOwnerId, setAdminViewingOwnerId] = useState(null)
-  const [mfaRequired, setMfaRequired] = useState(false)
+  const [user, setUser]                                   = useState(null)
+  const [profile, setProfile]                             = useState(null)
+  const [loading, setLoading]                             = useState(true)
+  const [isRecoveryMode, setIsRecoveryMode]               = useState(false)
+  const [adminViewingOwnerId, setAdminViewingOwnerId]     = useState(null)
+  const [mfaRequired, setMfaRequired]                     = useState(false)
 
   async function fetchProfile(userId) {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
     setProfile(data)
   }
 
+  // Resolve session + check MFA + load profile atomically so the UI never
+  // shows the dashboard during a partially-resolved state.
+  async function processSession(session) {
+    const u = session?.user ?? null
+    if (u) {
+      try {
+        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+        setMfaRequired(aal?.currentLevel === 'aal1' && aal?.nextLevel === 'aal2')
+      } catch (err) {
+        console.warn('AAL check failed (non-fatal):', err)
+        setMfaRequired(false)
+      }
+    } else {
+      setMfaRequired(false)
+    }
+    setUser(u)
+    if (u) fetchProfile(u.id)
+    else { setProfile(null); setAdminViewingOwnerId(null) }
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      const u = session?.user ?? null
-      setUser(u)
-      if (u) {
-        fetchProfile(u.id)
-        // Check if user has unverified MFA challenges pending
-        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-        if (aal?.currentLevel === 'aal1' && aal?.nextLevel === 'aal2') setMfaRequired(true)
-      }
+      await processSession(session)
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (_event === 'PASSWORD_RECOVERY') setIsRecoveryMode(true)
-      if (_event === 'MFA_CHALLENGE_VERIFIED') setMfaRequired(false)
-      const u = session?.user ?? null
-      if (u && _event === 'SIGNED_IN') {
-        // Hold loading=true during MFA check to prevent dashboard flash
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY')        setIsRecoveryMode(true)
+      if (event === 'MFA_CHALLENGE_VERIFIED')   setMfaRequired(false)
+      if (event === 'SIGNED_OUT') {
+        setUser(null); setProfile(null); setAdminViewingOwnerId(null); setMfaRequired(false); setIsRecoveryMode(false)
+        return
+      }
+      if (event === 'SIGNED_IN') {
+        // Hold loading during MFA check to prevent dashboard flash
         setLoading(true)
-        setUser(u)
-        fetchProfile(u.id)
-        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-        setMfaRequired(aal?.currentLevel === 'aal1' && aal?.nextLevel === 'aal2')
+        await processSession(session)
         setLoading(false)
         return
       }
+      // TOKEN_REFRESHED, USER_UPDATED, INITIAL_SESSION — update user quietly
+      const u = session?.user ?? null
       setUser(u)
-      if (u) fetchProfile(u.id)
-      else { setProfile(null); setAdminViewingOwnerId(null); setMfaRequired(false) }
+      if (u && !profile) fetchProfile(u.id)
     })
 
     return () => subscription.unsubscribe()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function login(email, password) {
@@ -62,10 +77,6 @@ export function AuthProvider({ children }) {
     setIsRecoveryMode(false)
     setMfaRequired(false)
     await supabase.auth.signOut()
-  }
-
-  function clearMfaRequired() {
-    setMfaRequired(false)
   }
 
   async function updateProfile(updates) {
@@ -83,9 +94,8 @@ export function AuthProvider({ children }) {
     if (user) await fetchProfile(user.id)
   }
 
-  function clearRecoveryMode() {
-    setIsRecoveryMode(false)
-  }
+  function clearRecoveryMode() { setIsRecoveryMode(false) }
+  function clearMfaRequired()  { setMfaRequired(false) }
 
   const isAdmin = profile?.role === 'admin'
   const ownerId = (isAdmin && adminViewingOwnerId) ? adminViewingOwnerId : (profile?.manager_id ?? user?.id)
