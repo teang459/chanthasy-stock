@@ -424,6 +424,21 @@ tbody tr:hover { background: var(--surface-2) }
 .card-title  { font-size:14px; font-weight:600; display:flex; align-items:center; gap:7px }
 .card-empty  { display:flex; flex-direction:column; align-items:center; gap:8px; padding:32px; color:var(--muted); font-size:13px }
 
+/* MFA enroll layout — responsive */
+.mfa-enroll-grid {
+  display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;
+}
+.mfa-qr-box {
+  background: #fff; padding: 8px;
+  border: 1px solid var(--border); border-radius: 8px;
+  flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  .mfa-enroll-grid { flex-direction: column; align-items: center }
+  .mfa-qr-box { width: 100%; max-width: 200px }
+  .mfa-enroll-grid > div:not(.mfa-qr-box) { width: 100%; max-width: 320px }
+}
+
 /* Finance page tabs */
 .finance-tab {
   background: none; border: none; padding: 10px 18px; font-size: 13px; font-weight: 500;
@@ -762,10 +777,17 @@ tbody tr:hover { background: var(--surface-2) }
   .content { padding-bottom: var(--mobile-nav-h) }
   .mobile-nav { display: flex }
 
-  /* Topbar */
+  /* Topbar — mobile: ไม่ overlap, shopname อยู่ด้านล่างเป็น row ใหม่ */
   .crumbs { display: none }
-  .topbar-shopname { font-size: 14px; max-width: 160px }
-  .topbar-search { flex: 1 }
+  .topbar-shopname {
+    position: static; transform: none;
+    font-size: 13px; max-width: none;
+    flex: 0 1 auto;
+    pointer-events: auto;
+    overflow: hidden; text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .topbar-search { display: none }   /* search ใช้พื้นที่มากไปบนมือถือ ใช้หน้า /stock แทน */
   .kbd { display: none }
 
   /* Page */

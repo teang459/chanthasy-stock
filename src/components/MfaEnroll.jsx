@@ -19,18 +19,16 @@ export default function MfaEnroll() {
 
   async function loadFactors() {
     setLoading(true)
-    const { data, error: err } = await supabase.auth.mfa.listFactors()
-    if (err) setError(userMessage(err) + ' (โหลด factors ไม่สำเร็จ)')
-    setFactors(data?.totp ?? [])
-    setLoading(false)
-  }
-
-  // Remove any unverified factors before starting a new enrollment.
-  // Supabase keeps unverified factors around until explicitly removed.
-  async function cleanupUnverified(currentList) {
-    const unverified = (currentList ?? factors).filter(f => f.status !== 'verified')
-    for (const f of unverified) {
-      try { await supabase.auth.mfa.unenroll({ factorId: f.id }) } catch {}
+    setError('')
+    try {
+      const { data, error: err } = await supabase.auth.mfa.listFactors()
+      if (err) throw err
+      setFactors(data?.totp ?? [])
+    } catch (err) {
+      console.error('[MFA] listFactors:', err)
+      setError(userMessage(err))
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -38,21 +36,30 @@ export default function MfaEnroll() {
     setError('')
     setStartingEnroll(true)
     try {
-      // refresh + cleanup
-      const { data: list } = await supabase.auth.mfa.listFactors()
+      const { data: list, error: listErr } = await supabase.auth.mfa.listFactors()
+      if (listErr) throw listErr
       const totp = list?.totp ?? []
+
+      // If already verified, just refresh display
       const verified = totp.find(f => f.status === 'verified')
       if (verified) {
         setFactors(totp)
         setStartingEnroll(false)
         return
       }
-      await cleanupUnverified(totp)
 
-      const friendlyName = `Chanthasy-${Date.now()}`
+      // Cleanup stale unverified factors
+      for (const f of totp.filter(f => f.status !== 'verified')) {
+        try { await supabase.auth.mfa.unenroll({ factorId: f.id }) }
+        catch (e) { console.warn('[MFA] cleanup failed:', e) }
+      }
+
+      const friendlyName = `Chanthasy-${Date.now().toString(36)}`
       const { data, error: err } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName })
       if (err) throw err
-      if (!data?.totp?.qr_code) throw new Error('Supabase ไม่ได้ส่ง QR Code กลับ — อาจปิด TOTP MFA ไว้')
+      if (!data?.totp?.qr_code && !data?.totp?.secret) {
+        throw new Error('Supabase ไม่ได้ส่ง QR กลับ — โปรเจกต์อาจปิด TOTP MFA')
+      }
 
       setEnrolling({
         factorId: data.id,
@@ -61,8 +68,8 @@ export default function MfaEnroll() {
         uri:      data.totp.uri,
       })
     } catch (err) {
-      console.error('MFA enroll error:', err)
-      setError(`เปิด 2FA ไม่สำเร็จ: ${userMessage(err)} (${err.message || err.code || 'unknown'})`)
+      console.error('[MFA] enroll:', err)
+      setError(`เปิด 2FA ไม่สำเร็จ: ${userMessage(err)} — ${err.message || err.code || 'unknown'}`)
     } finally {
       setStartingEnroll(false)
     }
@@ -76,21 +83,25 @@ export default function MfaEnroll() {
     }
     setVerifying(true)
     try {
-      const { data: ch, error: chErr } = await supabase.auth.mfa.challenge({ factorId: enrolling.factorId })
-      if (chErr) throw chErr
-      const { error: vErr } = await supabase.auth.mfa.verify({
+      // challengeAndVerify combines challenge() + verify() in one call.
+      // Avoids 2-step race where challenge expires before verify.
+      const { error: vErr } = await supabase.auth.mfa.challengeAndVerify({
         factorId: enrolling.factorId,
-        challengeId: ch.id,
         code,
       })
       if (vErr) throw vErr
-      toast.success('เปิด 2FA สำเร็จ ครั้งต่อไปจะต้องใช้แอป Authenticator')
+      toast.success('เปิด 2FA สำเร็จ ครั้งต่อไปต้องใช้แอป Authenticator')
       setEnrolling(null)
       setCode('')
       loadFactors()
     } catch (err) {
-      console.error('MFA verify error:', err)
-      setError(`รหัสไม่ถูกต้อง: ${userMessage(err)}`)
+      console.error('[MFA] verify:', err)
+      const msg = err.message || ''
+      let display = userMessage(err)
+      if (/invalid|incorrect|code/i.test(msg)) {
+        display = 'รหัสไม่ถูกต้อง — ลองอีกครั้ง (ตรวจเวลามือถือต้องตรง)'
+      }
+      setError(display)
     } finally {
       setVerifying(false)
     }
@@ -116,6 +127,14 @@ export default function MfaEnroll() {
     loadFactors()
   }
 
+  function copySecret() {
+    if (!enrolling?.secret) return
+    navigator.clipboard?.writeText(enrolling.secret).then(
+      () => toast.success('คัดลอก secret แล้ว'),
+      () => toast.error('คัดลอกไม่สำเร็จ')
+    )
+  }
+
   if (loading) return <div style={{ padding: 16 }}><Spinner size={20} /></div>
 
   const activeFactor = factors.find(f => f.status === 'verified')
@@ -130,11 +149,11 @@ export default function MfaEnroll() {
 
       {activeFactor ? (
         <div style={{ background: 'var(--accent-soft)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontWeight: 600, color: 'var(--accent-ink)' }}>✅ เปิดใช้งาน 2FA แล้ว</div>
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                บัญชีของคุณปลอดภัยมากขึ้น — ต้องใช้รหัสจากแอป Authenticator ทุกครั้งที่เข้าสู่ระบบ
+                ต้องใช้รหัสจากแอป Authenticator ทุกครั้งที่เข้าสู่ระบบ
               </div>
             </div>
             <button className="btn btn-ghost" style={{ fontSize: 12, color: 'var(--danger-ink)', flexShrink: 0 }} onClick={() => removeFactor(activeFactor.id)}>
@@ -144,29 +163,35 @@ export default function MfaEnroll() {
         </div>
       ) : enrolling?.qr ? (
         <div>
-          <p className="settings-hint" style={{ marginBottom: 12 }}>
-            1. เปิดแอป Authenticator (Google Authenticator, Authy, 1Password ฯลฯ)<br />
-            2. สแกน QR Code หรือกรอก secret manually<br />
-            3. กรอกรหัส 6 หลักที่ได้
+          <p className="settings-hint" style={{ marginBottom: 12, lineHeight: 1.7 }}>
+            <strong>1.</strong> เปิดแอป Authenticator (Google Authenticator, Authy, 1Password)<br />
+            <strong>2.</strong> สแกน QR Code หรือกรอก secret manually<br />
+            <strong>3.</strong> กรอกรหัส 6 หลักที่ได้
           </p>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <div style={{ background: '#fff', padding: 8, border: '1px solid var(--border)', borderRadius: 8 }}>
-              <img src={enrolling.qr} alt="QR Code 2FA" style={{ width: 160, height: 160, display: 'block' }} onError={() => setError('แสดง QR ไม่ได้ — ใช้ secret manually ใต้นี้แทน')} />
+          <div className="mfa-enroll-grid">
+            <div className="mfa-qr-box">
+              <img src={enrolling.qr} alt="QR Code 2FA"
+                style={{ width: '100%', maxWidth: 180, height: 'auto', display: 'block' }}
+                onError={() => setError('แสดง QR ไม่ได้ — กรอก secret manually แทน')}
+              />
             </div>
-            <div style={{ flex: 1, minWidth: 220 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Secret (กรณีสแกนไม่ได้)</div>
-              <code style={{ fontSize: 11, wordBreak: 'break-all', background: 'var(--bg)', padding: '6px 8px', borderRadius: 6, display: 'block', marginBottom: 12 }}>
-                {enrolling.secret}
-              </code>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                <code style={{ fontSize: 11, wordBreak: 'break-all', background: 'var(--bg)', padding: '6px 8px', borderRadius: 6, flex: 1, fontFamily: 'monospace' }}>
+                  {enrolling.secret}
+                </code>
+                <button type="button" className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 11 }} onClick={copySecret}>คัดลอก</button>
+              </div>
               <input
                 type="text"
-                placeholder="รหัส 6 หลัก"
+                placeholder="000000"
                 value={code}
                 onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 inputMode="numeric"
                 pattern="[0-9]*"
                 maxLength={6}
-                style={{ fontSize: 18, letterSpacing: 4, textAlign: 'center', fontFamily: 'monospace' }}
+                style={{ fontSize: 20, letterSpacing: 4, textAlign: 'center', fontFamily: 'monospace' }}
                 autoFocus
               />
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
@@ -174,6 +199,9 @@ export default function MfaEnroll() {
                 <button className="btn btn-primary" onClick={verifyEnroll} disabled={verifying || code.length !== 6} style={{ flex: 1, justifyContent: 'center' }}>
                   {verifying ? <Spinner size={14} color="#fff" /> : 'ยืนยัน'}
                 </button>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
+                💡 ถ้ารหัสไม่ถูกต้อง ตรวจให้แน่ใจว่าเวลาในมือถือตรงกับเวลาจริง (รหัสเปลี่ยนทุก 30 วินาที)
               </div>
             </div>
           </div>
@@ -183,11 +211,6 @@ export default function MfaEnroll() {
           <p className="settings-hint">
             เพิ่มชั้นความปลอดภัยให้บัญชี — ใช้แอป Authenticator (เช่น Google Authenticator) เพื่อสร้างรหัส 6 หลักทุกครั้งที่เข้าสู่ระบบ
           </p>
-          {factors.filter(f => f.status !== 'verified').length > 0 && (
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
-              พบ factor ค้าง {factors.filter(f => f.status !== 'verified').length} ตัว — จะถูกลบอัตโนมัติเมื่อกดตั้งค่าใหม่
-            </div>
-          )}
           <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={startEnroll} disabled={startingEnroll}>
             {startingEnroll ? <Spinner size={13} color="#fff" /> : <><I.Lock size={13} /> ตั้งค่า 2FA</>}
           </button>
