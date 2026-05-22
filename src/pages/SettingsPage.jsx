@@ -6,7 +6,7 @@ import Field from '../components/Field'
 import * as I from '../components/Icons'
 
 export default function SettingsPage() {
-  const { user, profile, updateProfile, changePassword } = useAuth()
+  const { user, profile, updateProfile, changePassword, logout } = useAuth()
   const { toast } = useToast()
 
   const [profileForm, setProfileForm] = useState({ name:'', initials:'', role:'' })
@@ -56,6 +56,9 @@ export default function SettingsPage() {
     <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">ตั้งค่า</h1></div>
+        <button className="btn btn-danger" onClick={logout} style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <I.LogOut size={14} /> ออกจากระบบ
+        </button>
       </div>
 
       <div className="settings-grid">

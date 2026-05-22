@@ -94,7 +94,7 @@ export default function CalendarPage() {
     if (Object.keys(errs).length) { setErrors(errs); return }
     setSaving(true)
     try {
-      const payload = { title:form.title.trim(), date:form.date, time:form.time||null, type:form.type, note:form.note?.trim()||null, created_by:user?.id }
+      const payload = { title:form.title.trim(), date:form.date, time:form.time||null, type:form.type, note:form.note?.trim()||null, created_by:user?.id, owner_id:user?.id }
       if (editItem) {
         const { error } = await supabase.from('calendar_events').update(payload).eq('id', editItem.id)
         if (error) throw error

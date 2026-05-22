@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
+import { useAuth } from '../contexts/AuthContext'
 import Modal from '../components/Modal'
 import Confirm from '../components/Confirm'
 import Spinner from '../components/Spinner'
@@ -22,6 +23,7 @@ const HUES = [
 
 export default function CategoriesPage() {
   const { toast } = useToast()
+  const { user } = useAuth()
   const [cats, setCats]         = useState([])
   const [counts, setCounts]     = useState({})
   const [loading, setLoading]   = useState(true)
@@ -69,7 +71,7 @@ export default function CategoriesPage() {
         if (error) throw error
         toast.success('แก้ไขหมวดหมู่สำเร็จ')
       } else {
-        const { error } = await supabase.from('categories').insert(payload)
+        const { error } = await supabase.from('categories').insert({ ...payload, owner_id: user?.id })
         if (error) throw error
         toast.success('เพิ่มหมวดหมู่สำเร็จ')
       }

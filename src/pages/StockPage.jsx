@@ -119,7 +119,7 @@ export default function StockPage() {
         if (error) throw error
         toast.success('แก้ไขข้อมูลสำเร็จ')
       } else {
-        const { error } = await supabase.from('plants').insert(payload)
+        const { error } = await supabase.from('plants').insert({ ...payload, owner_id: user.id })
         if (error) throw error
         toast.success('เพิ่มต้นไม้สำเร็จ')
       }
@@ -161,7 +161,7 @@ export default function StockPage() {
       if (e1) throw e1
 
       const delta = adjForm.type === 'adjust' ? (qty - adjItem.stock) : (adjForm.type === 'in' ? qty : -qty)
-      await supabase.from('movements').insert({ plant_id: adjItem.id, type: adjForm.type, qty: delta, note: adjForm.note?.trim() || null, created_by: user?.id })
+      await supabase.from('movements').insert({ plant_id: adjItem.id, type: adjForm.type, qty: delta, note: adjForm.note?.trim() || null, created_by: user?.id, owner_id: user?.id })
 
       toast.success('ปรับสต็อกสำเร็จ')
       setAdjItem(null)

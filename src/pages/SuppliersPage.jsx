@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
+import { useAuth } from '../contexts/AuthContext'
 import Modal from '../components/Modal'
 import Confirm from '../components/Confirm'
 import Spinner from '../components/Spinner'
@@ -12,6 +13,7 @@ const EMPTY = { code:'', name:'', contact:'', phone:'', email:'', note:'' }
 
 export default function SuppliersPage() {
   const { toast } = useToast()
+  const { user } = useAuth()
   const [sups, setSups]         = useState([])
   const [counts, setCounts]     = useState({})
   const [loading, setLoading]   = useState(true)
@@ -61,7 +63,7 @@ export default function SuppliersPage() {
         if (error) throw error
         toast.success('แก้ไขซัพพลายเออร์สำเร็จ')
       } else {
-        const { error } = await supabase.from('suppliers').insert(payload)
+        const { error } = await supabase.from('suppliers').insert({ ...payload, owner_id: user?.id })
         if (error) throw error
         toast.success('เพิ่มซัพพลายเออร์สำเร็จ')
       }

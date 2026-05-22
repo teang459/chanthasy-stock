@@ -37,6 +37,7 @@ export default function Layout() {
       {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
 
       <Sidebar
+        open={sidebarOpen}
         lowCount={lowPlants.length}
         onClose={() => setSidebarOpen(false)}
       />

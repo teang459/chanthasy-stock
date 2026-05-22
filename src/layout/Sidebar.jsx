@@ -17,12 +17,12 @@ const SYSTEM = [
   { to: '/settings', label: 'ตั้งค่า',  Icon: I.Gear },
 ]
 
-export default function Sidebar({ lowCount, onClose }) {
+export default function Sidebar({ open, lowCount, onClose }) {
   const { profile, logout } = useAuth()
   const user = profile ?? { name: 'ผู้ใช้', role: 'staff', initials: 'UU' }
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${open ? ' open' : ''}`}>
       {/* close btn (mobile) */}
       <button className="sidebar-close icon-btn" onClick={onClose} aria-label="ปิดเมนู">
         <I.X size={16} />
