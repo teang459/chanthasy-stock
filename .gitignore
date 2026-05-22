@@ -1,0 +1,14 @@
+# Node / Next.js
+tree-stock-tmp/node_modules/
+tree-stock-tmp/.next/
+tree-stock-tmp/out/
+
+# Separate sub-projects
+tree-stock-enterprise/
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
