@@ -10,6 +10,7 @@ import { useCurrency } from '../contexts/CurrencyContext'
 import Modal from '../components/Modal'
 import Confirm from '../components/Confirm'
 import Spinner from '../components/Spinner'
+import { SkeletonTable } from '../components/Skeleton'
 import EmptyState from '../components/EmptyState'
 import StatusBadge from '../components/StatusBadge'
 import StockBar from '../components/StockBar'
@@ -251,7 +252,19 @@ export default function StockPage() {
     ? (sortDir === 'asc' ? <I.ArrowU size={10} /> : <I.ArrowD size={10} />)
     : null
 
-  if (loading) return <div className="page-center"><Spinner size={32} /></div>
+  if (loading) {
+    return (
+      <div className="page">
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">รายการสต็อก</h1>
+            <p className="page-sub">กำลังโหลด...</p>
+          </div>
+        </div>
+        <SkeletonTable rows={8} cols={7} />
+      </div>
+    )
+  }
 
   return (
     <div className="page">

@@ -29,6 +29,11 @@
   --shadow-lg: 0 8px 32px rgba(0,0,0,.12);
 }
 
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* Reset */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
 html { font-size: 14px; color-scheme: light }

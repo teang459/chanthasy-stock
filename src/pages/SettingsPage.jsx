@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { useCurrency } from '../contexts/CurrencyContext'
+import { supabase } from '../lib/supabase'
 import Spinner from '../components/Spinner'
 import Field from '../components/Field'
 import * as I from '../components/Icons'
@@ -16,6 +17,7 @@ export default function SettingsPage() {
   const [pwForm, setPwForm]           = useState({ newPw: '', confirmPw: '', showPw: false })
   const [notifPerm, setNotifPerm]     = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported')
   const [saving, setSaving]           = useState(false)
+  const [exporting, setExporting]     = useState(false)
 
   useEffect(() => {
     if (profile) setProfileForm({ name: profile.name ?? '', initials: profile.initials ?? '', shop_name: profile.shop_name ?? '' })
@@ -45,6 +47,40 @@ export default function SettingsPage() {
     if (error) toast.error(`เปลี่ยนรหัสผ่านไม่สำเร็จ: ${userMessage(error)}`)
     else { toast.success('เปลี่ยนรหัสผ่านสำเร็จ'); setPwForm({ newPw: '', confirmPw: '', showPw: false }) }
     setSaving(false)
+  }
+
+  async function handleExportAll() {
+    setExporting(true)
+    try {
+      const [plants, cats, sups, moves, cal] = await Promise.all([
+        supabase.from('plants').select('*'),
+        supabase.from('categories').select('*'),
+        supabase.from('suppliers').select('*'),
+        supabase.from('movements').select('*').order('created_at', { ascending: false }),
+        supabase.from('calendar_events').select('*'),
+      ])
+      const dump = {
+        exported_at: new Date().toISOString(),
+        profile,
+        plants:    plants.data ?? [],
+        categories: cats.data ?? [],
+        suppliers: sups.data ?? [],
+        movements: moves.data ?? [],
+        calendar_events: cal.data ?? [],
+      }
+      const blob = new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' })
+      const a = Object.assign(document.createElement('a'), {
+        href: URL.createObjectURL(blob),
+        download: `chanthasy-backup-${new Date().toISOString().slice(0, 10)}.json`,
+      })
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      URL.revokeObjectURL(a.href)
+      toast.success('ส่งออกข้อมูลทั้งหมดสำเร็จ')
+    } catch (err) {
+      toast.error(`ส่งออกไม่สำเร็จ: ${userMessage(err)}`)
+    } finally {
+      setExporting(false)
+    }
   }
 
   async function requestNotifPermission() {
@@ -177,6 +213,17 @@ export default function SettingsPage() {
                 </button>
               )}
             </div>
+          </div>
+        </section>
+
+        {/* Data export */}
+        <section className="card">
+          <div className="card-header"><h2 className="card-title"><I.Download size={14} /> ส่งออกข้อมูล</h2></div>
+          <div className="settings-card-body">
+            <p className="settings-hint">ดาวน์โหลดข้อมูลทั้งหมดของคุณเป็นไฟล์ JSON (ตามสิทธิ์ PDPA)</p>
+            <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={handleExportAll} disabled={exporting}>
+              {exporting ? <Spinner size={13} color="#fff" /> : <><I.Download size={13} /> ดาวน์โหลด Backup</>}
+            </button>
           </div>
         </section>
 

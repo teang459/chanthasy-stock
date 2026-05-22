@@ -6,6 +6,7 @@ import { useCurrency } from '../contexts/CurrencyContext'
 import { useAuth } from '../contexts/AuthContext'
 import StatusBadge from '../components/StatusBadge'
 import Spinner from '../components/Spinner'
+import { SkeletonStats, SkeletonBox } from '../components/Skeleton'
 import * as I from '../components/Icons'
 
 export default function DashboardPage() {
@@ -46,7 +47,39 @@ export default function DashboardPage() {
     return { total, ok, low, out, totalStock, totalValue, alerts }
   }, [plants])
 
-  if (loading) return <div className="page-center"><Spinner size={32} /></div>
+  if (loading) {
+    return (
+      <div className="page">
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">แดชบอร์ด</h1>
+            <p className="page-sub">กำลังโหลด...</p>
+          </div>
+        </div>
+        <SkeletonStats count={6} />
+        <div className="dash-grid" style={{ marginTop: 24 }}>
+          <section className="card" style={{ padding: 16 }}>
+            <SkeletonBox height={20} width="40%" style={{ marginBottom: 16 }} />
+            {Array.from({ length: 4 }, (_, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
+                <SkeletonBox width="60%" height={14} />
+                <SkeletonBox width={60} height={20} />
+              </div>
+            ))}
+          </section>
+          <section className="card" style={{ padding: 16 }}>
+            <SkeletonBox height={20} width="40%" style={{ marginBottom: 16 }} />
+            {Array.from({ length: 4 }, (_, i) => (
+              <div key={i} style={{ display: 'flex', gap: 12, padding: '8px 0', alignItems: 'center' }}>
+                <SkeletonBox width={24} height={24} radius={12} />
+                <SkeletonBox width="70%" height={14} />
+              </div>
+            ))}
+          </section>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="page">

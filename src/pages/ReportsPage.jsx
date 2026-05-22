@@ -1,10 +1,28 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
 import { statusOf, fmtCurrency, downloadCSV, fmtDate } from '../lib/utils'
+import { userMessage } from '../lib/errors'
 import { useCurrency } from '../contexts/CurrencyContext'
 import Spinner from '../components/Spinner'
 import * as I from '../components/Icons'
+
+const TYPE_LABEL = { in: 'รับเข้า', out: 'จ่ายออก', adjust: 'ปรับ', new: 'เพิ่ม', delete: 'ลบ', rename: 'เปลี่ยนชื่อ' }
+
+const RANGES = [
+  { value: '7',   label: '7 วัน' },
+  { value: '30',  label: '30 วัน' },
+  { value: '90',  label: '90 วัน' },
+  { value: '365', label: '1 ปี' },
+  { value: 'all', label: 'ทั้งหมด' },
+]
+
+function isoDaysAgo(days) {
+  const d = new Date()
+  d.setDate(d.getDate() - days)
+  d.setHours(0, 0, 0, 0)
+  return d.toISOString()
+}
 
 export default function ReportsPage() {
   const { toast } = useToast()
@@ -12,109 +30,123 @@ export default function ReportsPage() {
   const [plants, setPlants]   = useState([])
   const [moves, setMoves]     = useState([])
   const [loading, setLoading] = useState(true)
+  const [range, setRange]     = useState('30')
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [range])
 
   async function load() {
-    const [{ data: p }, { data: m }] = await Promise.all([
-      supabase.from('plants').select('*, categories(name_th,hue)'),
-      supabase.from('movements').select('*, plants(name,sku)').order('created_at', { ascending: false }).limit(2000),
-    ])
-    setPlants(p ?? [])
-    setMoves(m ?? [])
-    setLoading(false)
+    setLoading(true)
+    try {
+      const plantsQ = supabase.from('plants').select('*, categories(name_th,hue)')
+      let movesQ = supabase.from('movements').select('*, plants(name,sku)').order('created_at', { ascending: false }).limit(5000)
+      if (range !== 'all') movesQ = movesQ.gte('created_at', isoDaysAgo(Number(range)))
+      const [{ data: p, error: pErr }, { data: m, error: mErr }] = await Promise.all([plantsQ, movesQ])
+      if (pErr || mErr) throw (pErr || mErr)
+      setPlants(p ?? [])
+      setMoves(m ?? [])
+    } catch (err) {
+      toast.error(`โหลดข้อมูลไม่สำเร็จ: ${userMessage(err)}`)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const total    = plants.length
-  const outCount = plants.filter(p => statusOf(p) === 'out').length
-  const lowCount = plants.filter(p => statusOf(p) === 'low').length
-  const okCount  = plants.filter(p => statusOf(p) === 'ok').length
-  const totalStock = plants.reduce((s,p) => s + p.stock, 0)
-  const totalValue = plants.reduce((s,p) => s + p.stock * Number(p.price), 0)
-  const totalCost  = plants.reduce((s,p) => s + p.stock * Number(p.cost ?? 0), 0)
+  const stats = useMemo(() => {
+    const total      = plants.length
+    const outCount   = plants.filter(p => statusOf(p) === 'out').length
+    const lowCount   = plants.filter(p => statusOf(p) === 'low').length
+    const okCount    = plants.filter(p => statusOf(p) === 'ok').length
+    const totalStock = plants.reduce((s, p) => s + p.stock, 0)
+    const totalValue = plants.reduce((s, p) => s + p.stock * Number(p.price), 0)
+    const totalCost  = plants.reduce((s, p) => s + p.stock * Number(p.cost ?? 0), 0)
 
-  // By category
-  const byCat = {}
-  plants.forEach(p => {
-    const cn = p.categories?.name_th ?? 'ไม่มีหมวดหมู่'
-    if (!byCat[cn]) byCat[cn] = { name: cn, count: 0, stock: 0, value: 0 }
-    byCat[cn].count++
-    byCat[cn].stock += p.stock
-    byCat[cn].value += p.stock * Number(p.price)
-  })
-  const catRows = Object.values(byCat).sort((a,b) => b.value - a.value)
+    const byCat = {}
+    plants.forEach(p => {
+      const cn = p.categories?.name_th ?? 'ไม่มีหมวดหมู่'
+      if (!byCat[cn]) byCat[cn] = { name: cn, count: 0, stock: 0, value: 0 }
+      byCat[cn].count++
+      byCat[cn].stock += p.stock
+      byCat[cn].value += p.stock * Number(p.price)
+    })
+    const catRows = Object.values(byCat).sort((a, b) => b.value - a.value)
+    const topStock = [...plants].sort((a, b) => b.stock - a.stock).slice(0, 10)
+    const topValue = [...plants].sort((a, b) => (b.stock * b.price) - (a.stock * a.price)).slice(0, 10)
 
-  // Top by stock
-  const topStock = [...plants].sort((a,b) => b.stock - a.stock).slice(0, 10)
-  const topValue = [...plants].sort((a,b) => (b.stock*b.price) - (a.stock*a.price)).slice(0, 10)
+    return { total, outCount, lowCount, okCount, totalStock, totalValue, totalCost, catRows, topStock, topValue }
+  }, [plants])
 
   function exportStock() {
     const rows = [
-      ['SKU','ชื่อต้นไม้','หมวดหมู่','สต็อก','ราคา','ต้นทุน','มูลค่า','สถานะ'],
-      ...plants.map(p => [p.sku, p.name, p.categories?.name_th??'', p.stock, p.price, p.cost??'', p.stock*Number(p.price), statusOf(p)])
+      ['SKU', 'ชื่อต้นไม้', 'หมวดหมู่', 'สต็อก', 'ราคา', 'ต้นทุน', 'มูลค่า', 'สถานะ'],
+      ...plants.map(p => [p.sku, p.name, p.categories?.name_th ?? '', p.stock, p.price, p.cost ?? '', p.stock * Number(p.price), statusOf(p)]),
     ]
-    downloadCSV(rows, `รายงาน-สต็อก-${new Date().toISOString().slice(0,10)}.csv`)
+    downloadCSV(rows, `รายงาน-สต็อก-${new Date().toISOString().slice(0, 10)}.csv`)
     toast.success('ส่งออกสำเร็จ')
   }
 
   function exportMovements() {
     const rows = [
-      ['วันที่','ต้นไม้','SKU','ประเภท','จำนวน','หมายเหตุ'],
-      ...moves.map(m => [fmtDate(m.created_at), m.plants?.name??'', m.plants?.sku??'', m.type, m.qty, m.note??''])
+      ['วันที่', 'ต้นไม้', 'SKU', 'ประเภท', 'จำนวน', 'หมายเหตุ'],
+      ...moves.map(m => [fmtDate(m.created_at), m.plants?.name ?? '', m.plants?.sku ?? '', TYPE_LABEL[m.type] ?? m.type, m.qty, m.note ?? '']),
     ]
-    downloadCSV(rows, `รายงาน-เคลื่อนไหว-${new Date().toISOString().slice(0,10)}.csv`)
+    downloadCSV(rows, `รายงาน-เคลื่อนไหว-${new Date().toISOString().slice(0, 10)}.csv`)
     toast.success('ส่งออกสำเร็จ')
   }
 
   if (loading) return <div className="page-center"><Spinner size={32} /></div>
 
-  const maxVal = Math.max(...catRows.map(c=>c.value), 1)
+  const maxVal = Math.max(...stats.catRows.map(c => c.value), 1)
 
   return (
     <div className="page">
       <div className="page-header">
-        <div><h1 className="page-title">รายงาน</h1></div>
-        <div className="page-actions">
+        <div>
+          <h1 className="page-title">รายงาน</h1>
+          <p className="page-sub">{moves.length} รายการเคลื่อนไหวในช่วงที่เลือก</p>
+        </div>
+        <div className="page-actions" style={{ alignItems: 'center', gap: 8 }}>
+          <select value={range} onChange={e => setRange(e.target.value)} style={{ minWidth: 110 }}>
+            {RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+          </select>
           <button className="btn btn-ghost" onClick={exportMovements}><I.Download size={13} /> เคลื่อนไหว</button>
           <button className="btn btn-primary" onClick={exportStock}><I.Download size={13} /> สต็อกทั้งหมด</button>
         </div>
       </div>
 
-      {/* Summary cards */}
       <div className="stats-grid">
-        <ReportStat label="สินค้าทั้งหมด"  value={total}              unit="รายการ" color={140} />
-        <ReportStat label="สต็อกรวม"       value={totalStock}         unit="หน่วย"  color={170} />
-        <ReportStat label="มูลค่าสต็อก"    value={fmtCurrency(totalValue)} unit={symbol} color={220} />
-        <ReportStat label="ต้นทุนสต็อก"    value={fmtCurrency(totalCost)}  unit={symbol} color={60}  />
-        <ReportStat label="สต็อกปกติ"      value={okCount}            unit="รายการ" color={140} />
-        <ReportStat label="ต้องดำเนินการ" value={lowCount+outCount}  unit="รายการ" color={25}  alert={lowCount+outCount > 0} />
+        <ReportStat label="สินค้าทั้งหมด"  value={stats.total}                          unit="รายการ" color={140} />
+        <ReportStat label="สต็อกรวม"        value={stats.totalStock}                     unit="หน่วย"  color={170} />
+        <ReportStat label="มูลค่าสต็อก"     value={fmtCurrency(stats.totalValue)}        unit={symbol} color={220} />
+        <ReportStat label="ต้นทุนสต็อก"     value={fmtCurrency(stats.totalCost)}         unit={symbol} color={60}  />
+        <ReportStat label="สต็อกปกติ"       value={stats.okCount}                        unit="รายการ" color={140} />
+        <ReportStat label="ต้องดำเนินการ"  value={stats.lowCount + stats.outCount}      unit="รายการ" color={25}  alert={(stats.lowCount + stats.outCount) > 0} />
       </div>
 
       <div className="report-grid">
-        {/* By category */}
         <section className="card">
           <div className="card-header"><h2 className="card-title">มูลค่าตามหมวดหมู่</h2></div>
-          {catRows.map(c => (
+          {stats.catRows.length === 0 ? (
+            <div className="card-empty" style={{ padding: 24, color: 'var(--muted)' }}>ยังไม่มีข้อมูล</div>
+          ) : stats.catRows.map(c => (
             <div key={c.name} className="report-bar-row">
               <div className="report-bar-label">{c.name}</div>
               <div className="report-bar-track">
-                <div className="report-bar-fill" style={{ width:`${(c.value/maxVal)*100}%` }} />
+                <div className="report-bar-fill" style={{ width: `${(c.value / maxVal) * 100}%` }} />
               </div>
               <div className="report-bar-val">{fmtCurrency(c.value)} {symbol}</div>
             </div>
           ))}
         </section>
 
-        {/* Top by stock */}
         <section className="card">
           <div className="card-header"><h2 className="card-title">Top 10 สต็อกมากที่สุด</h2></div>
           <div className="table-wrap" style={{ margin: 0 }}>
             <table>
               <thead><tr><th>#</th><th>ต้นไม้</th><th>สต็อก</th><th>มูลค่า</th></tr></thead>
               <tbody>
-                {topStock.map((p,i) => (
+                {stats.topStock.map((p, i) => (
                   <tr key={p.id}>
-                    <td className="mono muted">{i+1}</td>
+                    <td className="mono muted">{i + 1}</td>
                     <td>{p.name}</td>
                     <td className="mono">{p.stock}</td>
                     <td className="mono">{fmtCurrency(p.stock * p.price)} {symbol}</td>
@@ -125,16 +157,15 @@ export default function ReportsPage() {
           </div>
         </section>
 
-        {/* Top by value */}
         <section className="card">
           <div className="card-header"><h2 className="card-title">Top 10 มูลค่ามากที่สุด</h2></div>
           <div className="table-wrap" style={{ margin: 0 }}>
             <table>
               <thead><tr><th>#</th><th>ต้นไม้</th><th>ราคา</th><th>มูลค่ารวม</th></tr></thead>
               <tbody>
-                {topValue.map((p,i) => (
+                {stats.topValue.map((p, i) => (
                   <tr key={p.id}>
-                    <td className="mono muted">{i+1}</td>
+                    <td className="mono muted">{i + 1}</td>
                     <td>{p.name}</td>
                     <td className="mono">{fmtCurrency(p.price)} {symbol}</td>
                     <td className="mono">{fmtCurrency(p.stock * p.price)} {symbol}</td>
