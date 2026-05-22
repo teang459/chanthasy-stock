@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
@@ -11,13 +11,17 @@ export function AuthProvider({ children }) {
   const [adminViewingOwnerId, setAdminViewingOwnerId]     = useState(null)
   const [mfaRequired, setMfaRequired]                     = useState(false)
 
+  // Track previous user.id to avoid unnecessary profile re-fetches on token refresh
+  const userIdRef    = useRef(null)
+  const initialized  = useRef(false)
+
   async function fetchProfile(userId) {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
     setProfile(data)
   }
 
-  // Resolve session + check MFA + load profile atomically so the UI never
-  // shows the dashboard during a partially-resolved state.
+  // Atomic: check MFA → set state → fetch profile only if user.id actually changed.
+  // Uses setUser bailout so token refreshes (same id, new object ref) don't cascade re-renders.
   async function processSession(session) {
     const u = session?.user ?? null
     if (u) {
@@ -26,40 +30,49 @@ export function AuthProvider({ children }) {
         setMfaRequired(aal?.currentLevel === 'aal1' && aal?.nextLevel === 'aal2')
       } catch (err) {
         console.warn('AAL check failed (non-fatal):', err)
-        setMfaRequired(false)
       }
     } else {
       setMfaRequired(false)
     }
-    setUser(u)
-    if (u) fetchProfile(u.id)
-    else { setProfile(null); setAdminViewingOwnerId(null) }
+
+    const prevUserId = userIdRef.current
+    const nextUserId = u?.id ?? null
+
+    // Bail out if same user — avoids re-render storm on every tab refocus
+    setUser(prev => (prev?.id === u?.id ? prev : u))
+
+    if (nextUserId !== prevUserId) {
+      userIdRef.current = nextUserId
+      if (u) fetchProfile(u.id)
+      else   { setProfile(null); setAdminViewingOwnerId(null) }
+    }
   }
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       await processSession(session)
+      initialized.current = true
       setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'PASSWORD_RECOVERY')        setIsRecoveryMode(true)
-      if (event === 'MFA_CHALLENGE_VERIFIED')   setMfaRequired(false)
+      if (event === 'PASSWORD_RECOVERY')      setIsRecoveryMode(true)
+      if (event === 'MFA_CHALLENGE_VERIFIED') setMfaRequired(false)
+
       if (event === 'SIGNED_OUT') {
-        setUser(null); setProfile(null); setAdminViewingOwnerId(null); setMfaRequired(false); setIsRecoveryMode(false)
+        userIdRef.current = null
+        setUser(null); setProfile(null); setAdminViewingOwnerId(null)
+        setMfaRequired(false); setIsRecoveryMode(false)
         return
       }
-      if (event === 'SIGNED_IN') {
-        // Hold loading during MFA check to prevent dashboard flash
-        setLoading(true)
-        await processSession(session)
-        setLoading(false)
-        return
-      }
-      // TOKEN_REFRESHED, USER_UPDATED, INITIAL_SESSION — update user quietly
-      const u = session?.user ?? null
-      setUser(u)
-      if (u && !profile) fetchProfile(u.id)
+
+      // Ignore events that fire before getSession resolves
+      // (avoids double-processing of initial session)
+      if (!initialized.current) return
+
+      // SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED, INITIAL_SESSION (post-init):
+      // process quietly — no loading screen, no UI disruption
+      await processSession(session)
     })
 
     return () => subscription.unsubscribe()
