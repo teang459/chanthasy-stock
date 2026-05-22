@@ -1,6 +1,34 @@
 // Main app: pages + detail panel + edit/adjust modals
 const { useState: uS, useMemo: uM, useEffect: uE, useRef: uR } = React;
 
+// Persisted state hook — survives page refresh
+function usePersisted(key, defaultValue) {
+  const [val, setVal] = uS(() => {
+    try {
+      const stored = localStorage.getItem(key);
+      return stored != null ? JSON.parse(stored) : defaultValue;
+    } catch { return defaultValue; }
+  });
+  uE(() => {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+  }, [key, val]);
+  return [val, setVal];
+}
+
+// Download data as CSV file (BOM prefix for Excel Thai support)
+function downloadCSV(filename, headers, rows) {
+  const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = [headers.map(escape).join(',')];
+  rows.forEach(r => lines.push(r.map(escape).join(',')));
+  const csv = '﻿' + lines.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // =================== STOCK LIST ===================
 function StockTable({ rows, density, onOpen, selected, sortBy, sortDir, onSort, onAdjust, onEdit, onDelete }) {
   const sortIcon = (col) => col === sortBy ? <span className="sort-arrow">{sortDir === 'asc' ? '▲' : '▼'}</span> : <span className="sort-arrow">▼</span>;
@@ -145,7 +173,7 @@ function FilterBar({ q, setQ, cat, setCat, status, setStatus, view, setView, onA
 }
 
 // =================== DETAIL PANEL ===================
-function DetailPanel({ plant, onClose, onAdjust, onEdit }) {
+function DetailPanel({ plant, onClose, onAdjust, onEdit, onDelete }) {
   const movements = uM(() => movementsFor(plant.sku), [plant.sku]);
   const s = statusOf(plant);
   const margin = ((plant.price - plant.cost) / plant.price * 100).toFixed(0);
@@ -230,7 +258,7 @@ function DetailPanel({ plant, onClose, onAdjust, onEdit }) {
         </div>
 
         <div className="panel-footer">
-          <button className="btn btn-ghost btn-danger" title="ลบรายการ"><I.Trash />ลบ</button>
+          <button className="btn btn-ghost btn-danger" title="ลบรายการ" onClick={onDelete}><I.Trash />ลบ</button>
           <div style={{ flex: 1 }}></div>
           <button className="btn" onClick={onEdit}><I.Edit />แก้ไขข้อมูล</button>
           <button className="btn btn-accent" onClick={() => onAdjust('in')}><I.Plus stroke={2.2} />ปรับสต็อก</button>
@@ -516,8 +544,7 @@ function DashboardPage({ plants, movements, density, openPlant, setPage, showAle
 }
 
 // =================== STOCK PAGE ===================
-function StockPage({ plants, density, view, setView, openPlant, selected, onAdjust, onEdit, onDelete, onAddNew }) {
-  const [q, setQ] = uS('');
+function StockPage({ plants, density, view, setView, openPlant, selected, onAdjust, onEdit, onDelete, onAddNew, q, setQ }) {
   const [cat, setCat] = uS('all');
   const [status, setStatus] = uS('all');
   const [sortBy, setSortBy] = uS('received');
@@ -549,7 +576,11 @@ function StockPage({ plants, density, view, setView, openPlant, selected, onAdju
     return r;
   }, [plants, q, cat, status, sortBy, sortDir]);
 
-  const onExport = () => alert(`ส่งออก CSV — ${rows.length} รายการ\n(สาธิต)`);
+  const onExport = () => {
+    const headers = ['SKU', 'ชื่อ', 'ชื่อวิทย์', 'หมวดหมู่', 'ราคา', 'ต้นทุน', 'คงเหลือ', 'ขั้นต่ำ', 'สถานะ', 'ตำแหน่ง', 'ซัพพลายเออร์', 'รับเข้า'];
+    const data = rows.map(p => [p.sku, p.name, p.sci, CAT_BY_ID[p.cat]?.th || p.cat, p.price, p.cost, p.stock, p.min, statusLabel(statusOf(p)), p.loc, p.supplier, p.received]);
+    downloadCSV(`stock-${new Date().toISOString().slice(0,10)}.csv`, headers, data);
+  };
 
   return (
     <div className="page">
@@ -708,27 +739,283 @@ function MovementsPage({ movements, openPlant }) {
   );
 }
 
-// =================== PLACEHOLDER PAGES ===================
-function PlaceholderPage({ title, subtitle }) {
+// =================== CATEGORIES PAGE ===================
+function CategoriesPage({ plants, openPlant, setPage }) {
+  const stats = uM(() => CATEGORIES.map(c => {
+    const list = plants.filter(p => p.cat === c.id);
+    return {
+      ...c,
+      count: list.length,
+      totalStock: list.reduce((s, p) => s + p.stock, 0),
+      totalValue: list.reduce((s, p) => s + p.stock * p.cost, 0),
+      lowCount: list.filter(p => statusOf(p) !== 'ok').length,
+    };
+  }), [plants]);
+
   return (
     <div className="page">
       <div className="page-header">
         <div>
-          <h1 className="page-title">{title}</h1>
-          <div className="page-subtitle">{subtitle}</div>
+          <h1 className="page-title">หมวดหมู่</h1>
+          <div className="page-subtitle">จัดการกลุ่มต้นไม้ในร้าน · {CATEGORIES.length} หมวดหมู่ · {plants.length} รายการรวม</div>
         </div>
       </div>
-      <div style={{
-        border: '1px dashed var(--border-strong)',
-        borderRadius: 12,
-        padding: 60,
-        textAlign: 'center',
-        color: 'var(--muted)',
-        background: 'var(--surface)',
-        backgroundImage: 'repeating-linear-gradient(135deg, transparent 0 14px, var(--surface-2) 14px 15px)'
-      }}>
-        <div style={{ fontFamily: 'IBM Plex Mono', fontSize: 12, marginBottom: 6, letterSpacing: '0.04em' }}>SECTION PLACEHOLDER</div>
-        <div style={{ fontSize: 15, color: 'var(--ink-2)', fontWeight: 500 }}>หน้านี้พร้อมสำหรับขั้นถัดไป</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
+        {stats.map(c => (
+          <article key={c.id} className="table-wrap" style={{ padding: 16, cursor: 'pointer' }}
+            onClick={() => setPage('stock')}
+            onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--border-strong)'}
+            onMouseLeave={(e) => e.currentTarget.style.borderColor = ''}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 8,
+                background: `oklch(94% 0.04 ${c.hue})`,
+                display: 'grid', placeItems: 'center',
+                color: `oklch(38% 0.09 ${c.hue})`,
+                fontFamily: 'IBM Plex Mono', fontSize: 13, fontWeight: 600,
+              }}>{c.count}</div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{c.th}</div>
+                <div className="cell-sku" style={{ fontSize: 11 }}>{c.en}</div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}>
+              <div>
+                <div className="cell-sku" style={{ fontSize: 11 }}>คงเหลือรวม</div>
+                <div className="num" style={{ fontWeight: 600, fontSize: 15 }}>{formatBaht(c.totalStock)} ต้น</div>
+              </div>
+              <div>
+                <div className="cell-sku" style={{ fontSize: 11 }}>มูลค่าสต็อก</div>
+                <div className="num" style={{ fontWeight: 600, fontSize: 15 }}>฿{formatBaht(Math.round(c.totalValue / 1000))}K</div>
+              </div>
+            </div>
+            {c.lowCount > 0 && (
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--amber-ink)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <I.Alert size={11} stroke={2} />{c.lowCount} รายการต้องเติม
+              </div>
+            )}
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// =================== SUPPLIERS PAGE ===================
+function SuppliersPage({ plants, movements, openPlant }) {
+  const stats = uM(() => SUPPLIERS.map(s => {
+    const list = plants.filter(p => p.supplier === s);
+    const lastReceived = list.length ? list.reduce((d, p) => p.received > d ? p.received : d, '') : null;
+    return {
+      name: s,
+      count: list.length,
+      totalStock: list.reduce((acc, p) => acc + p.stock, 0),
+      totalValue: list.reduce((acc, p) => acc + p.stock * p.cost, 0),
+      lastReceived,
+      plants: list,
+    };
+  }).sort((a, b) => b.count - a.count), [plants]);
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">ซัพพลายเออร์</h1>
+          <div className="page-subtitle">ข้อมูลผู้ส่งและประวัติการรับเข้า · {SUPPLIERS.length} ราย</div>
+        </div>
+      </div>
+      <div className="table-wrap">
+        <table className="list">
+          <thead>
+            <tr>
+              <th>ซัพพลายเออร์</th>
+              <th className="num" style={{textAlign:'right'}}>จำนวน SKU</th>
+              <th className="num" style={{textAlign:'right'}}>สต็อกรวม</th>
+              <th className="num" style={{textAlign:'right'}}>มูลค่ารวม</th>
+              <th>รับเข้าล่าสุด</th>
+              <th>ตัวอย่างต้นไม้</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stats.map(s => (
+              <tr key={s.name}>
+                <td><div className="cell-product"><div><div className="name">{s.name}</div></div></div></td>
+                <td className="num"><strong className="num">{s.count}</strong></td>
+                <td className="num"><span className="num">{formatBaht(s.totalStock)} ต้น</span></td>
+                <td className="num"><strong className="num">฿{formatBaht(s.totalValue)}</strong></td>
+                <td style={{ fontSize: 12.5 }}>{s.lastReceived ? formatDateTh(s.lastReceived) : <span className="cell-sku">—</span>}</td>
+                <td>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {s.plants.slice(0, 4).map(p => (
+                      <button key={p.sku} title={p.name} onClick={() => openPlant(p.sku)} style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer' }}>
+                        <Thumb plant={p} size={26} />
+                      </button>
+                    ))}
+                    {s.plants.length > 4 && <span className="cell-sku" style={{ alignSelf: 'center', marginLeft: 4 }}>+{s.plants.length - 4}</span>}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// =================== REPORTS PAGE ===================
+function ReportsPage({ plants, movements }) {
+  const totalStock = plants.reduce((s, p) => s + p.stock, 0);
+  const totalValue = plants.reduce((s, p) => s + p.stock * p.cost, 0);
+  const totalSale = plants.reduce((s, p) => s + p.stock * p.price, 0);
+  const potentialProfit = totalSale - totalValue;
+  const inMoves = movements.filter(m => m.type === 'in').reduce((s, m) => s + Math.abs(m.qty), 0);
+  const outMoves = movements.filter(m => m.type === 'out').reduce((s, m) => s + Math.abs(m.qty), 0);
+  const adjMoves = movements.filter(m => m.type === 'adj').length;
+
+  const byCategory = CATEGORIES.map(c => {
+    const list = plants.filter(p => p.cat === c.id);
+    return { ...c, value: list.reduce((s, p) => s + p.stock * p.cost, 0), count: list.length };
+  }).filter(c => c.count > 0).sort((a, b) => b.value - a.value);
+  const maxVal = Math.max(...byCategory.map(c => c.value), 1);
+
+  const onExportAll = () => {
+    const headers = ['SKU', 'ชื่อ', 'หมวดหมู่', 'ราคา', 'ต้นทุน', 'คงเหลือ', 'มูลค่า', 'สถานะ'];
+    const rows = plants.map(p => [p.sku, p.name, CAT_BY_ID[p.cat]?.th, p.price, p.cost, p.stock, p.stock * p.cost, statusLabel(statusOf(p))]);
+    downloadCSV(`report-${new Date().toISOString().slice(0,10)}.csv`, headers, rows);
+  };
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">รายงาน</h1>
+          <div className="page-subtitle">สรุปยอดสต็อก มูลค่า และการเคลื่อนไหวรวม</div>
+        </div>
+        <button className="btn" onClick={onExportAll}><I.Download stroke={1.7} />ส่งออกรายงานรวม</button>
+      </div>
+
+      <div className="stats">
+        <StatCard label="สต็อกรวมทั้งหมด" icon={I.Box} value={formatBaht(totalStock)} unit="ต้น" sparkSeed={1.2} sparkColor="var(--accent)" />
+        <StatCard label="มูลค่าต้นทุน" icon={I.Chart} value={`฿${formatBaht(Math.round(totalValue/1000))}K`} sparkSeed={2.3} sparkColor="var(--accent)" />
+        <StatCard label="มูลค่าขาย (เต็มราคา)" icon={I.Chart} value={`฿${formatBaht(Math.round(totalSale/1000))}K`} sparkSeed={3.7} sparkColor="var(--accent)" />
+        <StatCard label="กำไรเต็มศักยภาพ" icon={I.ArrowU} value={`฿${formatBaht(Math.round(potentialProfit/1000))}K`} delta={`${Math.round(potentialProfit/totalValue*100)}% margin`} deltaDir="up" sparkSeed={4.1} sparkColor="var(--accent)" />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16 }} className="dash-cols">
+        <section className="table-wrap">
+          <div className="table-head-bar">
+            <div className="title">มูลค่าสต็อกตามหมวดหมู่</div>
+            <div style={{ flex: 1 }}></div>
+            <div className="count">{byCategory.length} หมวด</div>
+          </div>
+          <div style={{ padding: '12px 16px' }}>
+            {byCategory.map(c => (
+              <div key={c.id} style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 4 }}>
+                  <span>{c.th} <span className="cell-sku">· {c.count}</span></span>
+                  <span className="num" style={{ fontWeight: 600 }}>฿{formatBaht(Math.round(c.value/1000))}K</span>
+                </div>
+                <div style={{ height: 8, background: 'var(--surface-2)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${(c.value/maxVal*100)}%`, background: `oklch(60% 0.12 ${c.hue})`, transition: 'width 0.3s' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="table-wrap">
+          <div className="table-head-bar">
+            <div className="title">สรุปการเคลื่อนไหว</div>
+            <div style={{ flex: 1 }}></div>
+            <div className="count">{movements.length} รายการ</div>
+          </div>
+          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div className="movement-glyph in">+</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>รับเข้าทั้งหมด</div>
+                <div className="num" style={{ fontSize: 20, fontWeight: 600, color: 'var(--accent-ink)' }}>+{formatBaht(inMoves)}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div className="movement-glyph out">−</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>ตัดออกทั้งหมด</div>
+                <div className="num" style={{ fontSize: 20, fontWeight: 600, color: 'var(--danger-ink)' }}>−{formatBaht(outMoves)}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div className="movement-glyph adj">~</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>การปรับปรุง</div>
+                <div className="num" style={{ fontSize: 20, fontWeight: 600 }}>{adjMoves} ครั้ง</div>
+              </div>
+            </div>
+            <div style={{ paddingTop: 12, borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--muted)' }}>
+              ยอดสุทธิ: <strong className="num" style={{ color: inMoves >= outMoves ? 'var(--accent-ink)' : 'var(--danger-ink)' }}>
+                {inMoves >= outMoves ? '+' : ''}{formatBaht(inMoves - outMoves)} ต้น
+              </strong>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+// =================== SETTINGS PAGE ===================
+function SettingsPage({ currentUser, onLogout, onResetData }) {
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">ตั้งค่า</h1>
+          <div className="page-subtitle">ข้อมูลผู้ใช้ การจัดการข้อมูล และข้อมูลร้าน</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14 }}>
+        <section className="table-wrap" style={{ padding: 18 }}>
+          <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono', color: 'var(--muted)', letterSpacing: '0.06em', marginBottom: 12 }}>โปรไฟล์</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <div className="avatar" style={{ width: 48, height: 48, fontSize: 16 }}>{currentUser.initials}</div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>{currentUser.name}</div>
+              <div className="cell-sku">{currentUser.role}</div>
+            </div>
+          </div>
+          <div className="kv" style={{ fontSize: 13 }}>
+            <div><span className="k">ชื่อผู้ใช้</span><span className="v mono">{currentUser.username}</span></div>
+            <div><span className="k">บทบาท</span><span className="v">{currentUser.role}</span></div>
+          </div>
+          <button className="btn btn-ghost" style={{ marginTop: 16, color: 'var(--danger-ink)', borderColor: 'var(--danger)' }} onClick={onLogout}>
+            <I.LogOut size={13} stroke={1.8} />ออกจากระบบ
+          </button>
+        </section>
+
+        <section className="table-wrap" style={{ padding: 18 }}>
+          <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono', color: 'var(--muted)', letterSpacing: '0.06em', marginBottom: 12 }}>ข้อมูลร้าน</div>
+          <div className="kv" style={{ fontSize: 13 }}>
+            <div><span className="k">ชื่อร้าน</span><span className="v">สวนสมใจ</span></div>
+            <div><span className="k">รุ่นระบบ</span><span className="v mono">STOCK · v2.4</span></div>
+            <div><span className="k">โหมดข้อมูล</span><span className="v">บันทึกในเครื่อง (localStorage)</span></div>
+            <div><span className="k">ผู้ใช้ที่รองรับ</span><span className="v">{USERS.length} บัญชี</span></div>
+          </div>
+        </section>
+
+        <section className="table-wrap" style={{ padding: 18 }}>
+          <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono', color: 'var(--muted)', letterSpacing: '0.06em', marginBottom: 12 }}>การจัดการข้อมูล</div>
+          <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
+            ข้อมูลสต็อกและประวัติเคลื่อนไหวถูกบันทึกในเบราว์เซอร์นี้ — รีเซ็ตเพื่อใช้ข้อมูลตัวอย่างเริ่มต้นใหม่
+          </div>
+          <button className="btn btn-ghost btn-danger" onClick={() => {
+            if (confirm('รีเซ็ตข้อมูลทั้งหมด? ข้อมูลที่แก้ไขจะหายไป')) onResetData();
+          }}>
+            <I.Trash />รีเซ็ตข้อมูลตัวอย่าง
+          </button>
+        </section>
       </div>
     </div>
   );
@@ -895,8 +1182,8 @@ const ACCENT_BY_COLOR = Object.fromEntries(ACCENT_OPTIONS.map(a => [a.color.toLo
 
 function App({ currentUser, onLogout }) {
   const [page, setPage] = uS('stock');
-  const [plants, setPlants] = uS(PLANTS);
-  const [movements, setMovements] = uS(MOVEMENTS);
+  const [plants, setPlants] = usePersisted('suansomjai.plants', PLANTS);
+  const [movements, setMovements] = usePersisted('suansomjai.movements', MOVEMENTS);
   const [selectedSku, setSelectedSku] = uS(null);
   const [adjustSku, setAdjustSku] = uS(null);
   const [editSku, setEditSku] = uS(null);
@@ -967,7 +1254,7 @@ function App({ currentUser, onLogout }) {
       <div className="app">
         <Sidebar page={page} setPage={setPage} counts={counts} currentUser={currentUser} onLogout={onLogout} />
         <main className="main">
-          <Topbar here={here} onSearch={setTopSearch} searchValue={topSearch} />
+          <Topbar here={here} onSearch={(v) => { setTopSearch(v); if (v && page !== 'stock') setPage('stock'); }} searchValue={topSearch} />
           {page === 'dashboard' && <DashboardPage plants={plants} movements={movements} density={t.density} openPlant={openPlant} setPage={setPage} showAlert={t.showAlert} currentUser={currentUser} />}
           {page === 'stock' && (
             <StockPage
@@ -981,18 +1268,20 @@ function App({ currentUser, onLogout }) {
               onEdit={setEditSku}
               onDelete={handleDelete}
               onAddNew={() => setAddingNew(true)}
+              q={topSearch}
+              setQ={setTopSearch}
             />
           )}
           {page === 'low' && <LowStockPage plants={plants} openPlant={openPlant} onAdjust={setAdjustSku} />}
           {page === 'movements' && <MovementsPage movements={movements} openPlant={openPlant} />}
-          {page === 'categories' && <PlaceholderPage title="หมวดหมู่" subtitle="จัดการกลุ่มต้นไม้ในร้าน — Indoor, Outdoor, ไม้ดอก, ฯลฯ" />}
-          {page === 'suppliers' && <PlaceholderPage title="ซัพพลายเออร์" subtitle="ข้อมูลผู้ส่งและประวัติการรับเข้า" />}
-          {page === 'reports' && <PlaceholderPage title="รายงาน" subtitle="ยอดขาย มูลค่าสต็อก ฟลกราฟตามเดือน" />}
-          {page === 'settings' && <PlaceholderPage title="ตั้งค่า" subtitle="ผู้ใช้ บทบาท การแจ้งเตือน และข้อมูลร้าน" />}
+          {page === 'categories' && <CategoriesPage plants={plants} openPlant={openPlant} setPage={setPage} />}
+          {page === 'suppliers' && <SuppliersPage plants={plants} movements={movements} openPlant={openPlant} />}
+          {page === 'reports' && <ReportsPage plants={plants} movements={movements} />}
+          {page === 'settings' && <SettingsPage currentUser={currentUser} onLogout={onLogout} onResetData={() => { setPlants(PLANTS); setMovements(MOVEMENTS); }} />}
         </main>
       </div>
 
-      {selectedPlant && <DetailPanel plant={selectedPlant} onClose={closePanel} onAdjust={() => setAdjustSku(selectedPlant.sku)} onEdit={() => setEditSku(selectedPlant.sku)} />}
+      {selectedPlant && <DetailPanel plant={selectedPlant} onClose={closePanel} onAdjust={() => setAdjustSku(selectedPlant.sku)} onEdit={() => setEditSku(selectedPlant.sku)} onDelete={() => { handleDelete(selectedPlant.sku); closePanel(); }} />}
       {adjustPlant && <AdjustModal plant={adjustPlant} onClose={() => setAdjustSku(null)} onSubmit={handleAdjustSubmit} />}
       {editPlant && <EditModal plant={editPlant} mode="edit" onClose={() => setEditSku(null)} onSubmit={handleEditSubmit} />}
       {addingNew && <EditModal plant={null} mode="add" onClose={() => setAddingNew(false)} onSubmit={handleAddNew} />}
@@ -1022,7 +1311,7 @@ function App({ currentUser, onLogout }) {
 }
 
 function AuthWrapper() {
-  const [currentUser, setCurrentUser] = uS(null);
+  const [currentUser, setCurrentUser] = usePersisted('suansomjai.user', null);
   if (!currentUser) return <LoginPage onLogin={setCurrentUser} />;
   return <App currentUser={currentUser} onLogout={() => setCurrentUser(null)} />;
 }
