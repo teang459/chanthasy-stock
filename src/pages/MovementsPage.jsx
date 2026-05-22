@@ -6,7 +6,7 @@ import EmptyState from '../components/EmptyState'
 import Spinner from '../components/Spinner'
 import * as I from '../components/Icons'
 
-const TYPE_LABEL = { in:'รับเข้า', out:'จ่ายออก', adjust:'ปรับ' }
+const TYPE_LABEL = { in:'รับเข้า', out:'จ่ายออก', adjust:'ปรับ', new:'เพิ่มสินค้า', delete:'ลบสินค้า', rename:'เปลี่ยนชื่อ' }
 
 export default function MovementsPage() {
   const { toast } = useToast()
@@ -75,6 +75,9 @@ export default function MovementsPage() {
           <option value="in">รับเข้า</option>
           <option value="out">จ่ายออก</option>
           <option value="adjust">ปรับ</option>
+          <option value="new">เพิ่มสินค้า</option>
+          <option value="delete">ลบสินค้า</option>
+          <option value="rename">เปลี่ยนชื่อ</option>
         </select>
       </div>
 
@@ -96,14 +99,14 @@ export default function MovementsPage() {
                   <tr key={m.id}>
                     <td className="text-sm mono">{fmtDateTime(m.created_at)}</td>
                     <td>
-                      <div className="plant-name">{m.plants?.name ?? '—'}</div>
+                      <div className="plant-name">{m.plants?.name ?? (m.type === 'delete' ? m.note : '—')}</div>
                       <div className="plant-sci mono">{m.plants?.sku ?? ''}</div>
                     </td>
                     <td><span className={`move-type move-type--${m.type}`}>{TYPE_LABEL[m.type] ?? m.type}</span></td>
-                    <td className={`mono ${m.qty > 0 ? 'text-green' : m.qty < 0 ? 'text-red' : ''}`}>
-                      {m.qty > 0 ? `+${m.qty}` : m.qty}
+                    <td className={`mono ${m.type === 'in' && m.qty > 0 ? 'text-green' : m.type === 'out' ? 'text-red' : ''}`}>
+                      {m.type === 'rename' ? '—' : m.type === 'in' ? `+${m.qty}` : m.type === 'out' ? `-${m.qty}` : m.qty}
                     </td>
-                    <td className="text-sm muted">{m.note ?? '—'}</td>
+                    <td className="text-sm muted">{m.type === 'delete' ? '—' : (m.note ?? '—')}</td>
                   </tr>
                 ))}
               </tbody>

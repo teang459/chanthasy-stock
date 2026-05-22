@@ -404,6 +404,9 @@ tbody tr:hover { background: var(--surface-2) }
 .move-type--in     { background:var(--accent-soft); color:var(--accent-ink) }
 .move-type--out    { background:var(--danger-soft); color:var(--danger-ink) }
 .move-type--adjust { background:var(--amber-soft);  color:var(--amber-ink)  }
+.move-type--new    { background:oklch(93% 0.06 145); color:oklch(30% 0.10 145) }
+.move-type--delete { background:oklch(93% 0.06 15);  color:oklch(35% 0.12 15)  }
+.move-type--rename { background:oklch(93% 0.04 260); color:oklch(35% 0.10 260) }
 
 /* ============================================================
    FORMS
