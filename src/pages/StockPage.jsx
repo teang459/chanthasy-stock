@@ -154,18 +154,13 @@ export default function StockPage() {
     if (!qty || qty < 0) { toast.error('กรุณาระบุจำนวนที่ถูกต้อง'); return }
     setSaving(true)
     try {
-      let newStock = adjItem.stock
-      if (adjForm.type === 'in')     newStock += qty
-      else if (adjForm.type === 'out') newStock = Math.max(0, newStock - qty)
-      else newStock = qty
-
-      const { error: e1 } = await supabase.from('plants').update({ stock: newStock, updated_at: new Date().toISOString() }).eq('id', adjItem.id)
-      if (e1) throw e1
-
-      const delta = adjForm.type === 'adjust' ? (qty - adjItem.stock) : (adjForm.type === 'in' ? qty : -qty)
-      const { error: e2 } = await supabase.from('movements').insert({ plant_id: adjItem.id, type: adjForm.type, qty: delta, note: adjForm.note?.trim() || null, created_by: user?.id, owner_id: user?.id })
-      if (e2) throw e2
-
+      const { error } = await supabase.rpc('adjust_stock', {
+        p_plant_id: adjItem.id,
+        p_type:     adjForm.type,
+        p_qty:      qty,
+        p_note:     adjForm.note?.trim() || null,
+      })
+      if (error) throw error
       toast.success('ปรับสต็อกสำเร็จ')
       setAdjItem(null)
       loadPlants()
