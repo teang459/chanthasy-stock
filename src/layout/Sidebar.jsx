@@ -12,9 +12,9 @@ const NAV = [
   { to: '/suppliers',  label: 'ซัพพลายเออร์',      Icon: I.Truck },
 ]
 const SYSTEM = [
-  { to: '/calendar', label: 'ปฏิทิน',   Icon: I.Calendar },
-  { to: '/reports',  label: 'รายงาน',   Icon: I.Chart },
-  { to: '/settings', label: 'ตั้งค่า',  Icon: I.Gear },
+  { to: '/calendar', label: 'ปฏิทิน',  Icon: I.Calendar },
+  { to: '/reports',  label: 'รายงาน',  Icon: I.Chart },
+  { to: '/settings', label: 'ตั้งค่า', Icon: I.Gear },
 ]
 
 export default function Sidebar({ open, lowCount, onClose }) {
@@ -22,7 +22,6 @@ export default function Sidebar({ open, lowCount, onClose }) {
   const user = profile ?? { name: 'ผู้ใช้', role: 'staff', initials: 'UU' }
   return (
     <aside className={`sidebar${open ? ' open' : ''}`}>
-      {/* close btn (mobile) */}
       <button className="sidebar-close icon-btn" onClick={onClose} aria-label="ปิดเมนู">
         <I.X size={16} />
       </button>
@@ -57,10 +56,6 @@ export default function Sidebar({ open, lowCount, onClose }) {
         ))}
       </nav>
 
-      <NavLink to="/billing" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={{ margin: '0 8px 2px' }}>
-        <I.Chart size={15} />
-        <span>แพ็กเกจ</span>
-      </NavLink>
       {user.role === 'admin' && (
         <NavLink to="/admin" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={{ margin: '0 8px 4px' }}>
           <I.Gear size={15} />

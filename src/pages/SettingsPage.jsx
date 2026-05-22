@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { useCurrency } from '../contexts/CurrencyContext'
-import { supabase } from '../lib/supabase'
 import Spinner from '../components/Spinner'
 import Field from '../components/Field'
 import * as I from '../components/Icons'
@@ -10,55 +9,26 @@ import * as I from '../components/Icons'
 export default function SettingsPage() {
   const { user, profile, updateProfile, changePassword, logout } = useAuth()
   const { toast } = useToast()
-  const { currency, setCurrency, symbol } = useCurrency()
+  const { currency, setCurrency } = useCurrency()
 
-  const [profileForm, setProfileForm] = useState({ name:'', initials:'', role:'', shop_name:'' })
-  const [pwForm, setPwForm]           = useState({ newPw:'', confirmPw:'', showPw: false })
+  const [profileForm, setProfileForm] = useState({ name: '', initials: '', shop_name: '' })
+  const [pwForm, setPwForm]           = useState({ newPw: '', confirmPw: '', showPw: false })
   const [notifPerm, setNotifPerm]     = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported')
   const [saving, setSaving]           = useState(false)
-  const [teamMembers, setTeamMembers] = useState([])
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteSaving, setInviteSaving] = useState(false)
-
-  useEffect(() => { loadTeam() }, [user])
-
-  async function loadTeam() {
-    if (!user) return
-    const { data } = await supabase.from('team_invites').select('*').eq('owner_id', user.id).order('created_at')
-    setTeamMembers(data ?? [])
-  }
-
-  async function handleInvite(e) {
-    e.preventDefault()
-    if (!inviteEmail.trim()) return
-    setInviteSaving(true)
-    const { error } = await supabase.from('team_invites').insert({ owner_id: user.id, email: inviteEmail.trim() })
-    setInviteSaving(false)
-    if (error) {
-      if (error.code === '23505') toast.error('อีเมลนี้ถูกเชิญไปแล้ว')
-      else toast.error(`เชิญไม่สำเร็จ: ${error.message}`)
-    } else {
-      toast.success('ส่งคำเชิญสำเร็จ — แจ้งให้พนักงานสมัครด้วยอีเมลนี้')
-      setInviteEmail('')
-      loadTeam()
-    }
-  }
-
-  async function handleRemoveMember(id) {
-    await supabase.from('team_invites').delete().eq('id', id)
-    toast.success('ลบสมาชิกออกแล้ว')
-    loadTeam()
-  }
 
   useEffect(() => {
-    if (profile) setProfileForm({ name: profile.name??'', initials: profile.initials??'', role: profile.role??'staff', shop_name: profile.shop_name??'' })
+    if (profile) setProfileForm({ name: profile.name ?? '', initials: profile.initials ?? '', shop_name: profile.shop_name ?? '' })
   }, [profile])
 
   async function handleProfileSave(e) {
     e.preventDefault()
     if (!profileForm.name?.trim()) { toast.error('กรุณาระบุชื่อ'); return }
     setSaving(true)
-    const { error } = await updateProfile({ name: profileForm.name.trim(), initials: profileForm.initials?.trim() || profileForm.name.slice(0,2), role: profileForm.role, shop_name: profileForm.shop_name?.trim() || null })
+    const { error } = await updateProfile({
+      name: profileForm.name.trim(),
+      initials: profileForm.initials?.trim() || profileForm.name.slice(0, 2),
+      shop_name: profileForm.shop_name?.trim() || null,
+    })
     if (error) toast.error(`บันทึกไม่สำเร็จ: ${error.message}`)
     else toast.success('บันทึกโปรไฟล์สำเร็จ')
     setSaving(false)
@@ -66,13 +36,13 @@ export default function SettingsPage() {
 
   async function handlePwSave(e) {
     e.preventDefault()
-    if (!pwForm.newPw)                         { toast.error('กรุณาระบุรหัสผ่านใหม่'); return }
-    if (pwForm.newPw.length < 6)               { toast.error('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); return }
-    if (pwForm.newPw !== pwForm.confirmPw)     { toast.error('รหัสผ่านไม่ตรงกัน'); return }
+    if (!pwForm.newPw)                     { toast.error('กรุณาระบุรหัสผ่านใหม่'); return }
+    if (pwForm.newPw.length < 6)           { toast.error('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); return }
+    if (pwForm.newPw !== pwForm.confirmPw) { toast.error('รหัสผ่านไม่ตรงกัน'); return }
     setSaving(true)
     const { error } = await changePassword(pwForm.newPw)
     if (error) toast.error(`เปลี่ยนรหัสผ่านไม่สำเร็จ: ${error.message}`)
-    else { toast.success('เปลี่ยนรหัสผ่านสำเร็จ'); setPwForm({ newPw:'', confirmPw:'', showPw:false }) }
+    else { toast.success('เปลี่ยนรหัสผ่านสำเร็จ'); setPwForm({ newPw: '', confirmPw: '', showPw: false }) }
     setSaving(false)
   }
 
@@ -92,7 +62,7 @@ export default function SettingsPage() {
     <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">ตั้งค่า</h1></div>
-        <button className="btn btn-danger" onClick={logout} style={{ display:'flex', alignItems:'center', gap:6 }}>
+        <button className="btn btn-danger" onClick={logout} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <I.LogOut size={14} /> ออกจากระบบ
         </button>
       </div>
@@ -107,20 +77,20 @@ export default function SettingsPage() {
               <span>{user?.email}</span>
             </div>
             <Field label="ชื่อร้าน" hint="แสดงในแถบด้านข้างและส่วนหัว">
-              <input value={profileForm.shop_name} onChange={e => setProfileForm(f=>({...f,shop_name:e.target.value}))} placeholder="ร้านต้นไม้สวยงาม" />
+              <input value={profileForm.shop_name} onChange={e => setProfileForm(f => ({ ...f, shop_name: e.target.value }))} placeholder="ร้านต้นไม้สวยงาม" />
             </Field>
             <Field label="ชื่อผู้ใช้" required>
-              <input value={profileForm.name} onChange={e => setProfileForm(f=>({...f,name:e.target.value}))} placeholder="คุณสมใจ" />
+              <input value={profileForm.name} onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))} placeholder="คุณสมใจ" />
             </Field>
             <Field label="ชื่อย่อ (แสดงใน Avatar)" hint="1-3 ตัวอักษร">
-              <input value={profileForm.initials} onChange={e => setProfileForm(f=>({...f,initials:e.target.value}))} placeholder="สม" maxLength={3} />
+              <input value={profileForm.initials} onChange={e => setProfileForm(f => ({ ...f, initials: e.target.value }))} placeholder="สม" maxLength={3} />
             </Field>
-            <Field label="ตำแหน่ง">
-              <select value={profileForm.role} onChange={e => setProfileForm(f=>({...f,role:e.target.value}))}>
-                <option value="admin">Admin — จัดการทุกอย่าง</option>
-                <option value="staff">Staff — จัดการสต็อก</option>
-                <option value="viewer">Viewer — ดูข้อมูลได้อย่างเดียว</option>
-              </select>
+            <Field label="ตำแหน่ง" hint="เปลี่ยนได้โดย Admin เท่านั้น">
+              <input
+                value={profile?.role === 'admin' ? 'Admin' : profile?.role === 'viewer' ? 'Viewer' : 'Staff'}
+                readOnly
+                style={{ background: 'var(--bg)', cursor: 'default', color: 'var(--muted)' }}
+              />
             </Field>
             <div className="form-actions">
               <button type="submit" className="btn btn-primary" disabled={saving}>
@@ -135,19 +105,19 @@ export default function SettingsPage() {
           <div className="card-header"><h2 className="card-title"><I.Lock size={14} /> เปลี่ยนรหัสผ่าน</h2></div>
           <form onSubmit={handlePwSave} className="form-stack settings-card-body">
             <Field label="รหัสผ่านใหม่" hint="อย่างน้อย 6 ตัวอักษร">
-              <div style={{ position:'relative' }}>
+              <div style={{ position: 'relative' }}>
                 <input type={pwForm.showPw ? 'text' : 'password'} value={pwForm.newPw}
-                  onChange={e => setPwForm(f=>({...f,newPw:e.target.value}))}
-                  placeholder="รหัสผ่านใหม่" style={{ paddingRight:36 }} />
-                <button type="button" onClick={() => setPwForm(f=>({...f,showPw:!f.showPw}))}
-                  style={{ position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',color:'var(--muted)',padding:2 }}>
+                  onChange={e => setPwForm(f => ({ ...f, newPw: e.target.value }))}
+                  placeholder="รหัสผ่านใหม่" style={{ paddingRight: 36 }} />
+                <button type="button" onClick={() => setPwForm(f => ({ ...f, showPw: !f.showPw }))}
+                  style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 2 }}>
                   {pwForm.showPw ? <I.EyeOff size={13} /> : <I.Eye size={13} />}
                 </button>
               </div>
             </Field>
             <Field label="ยืนยันรหัสผ่านใหม่">
               <input type={pwForm.showPw ? 'text' : 'password'} value={pwForm.confirmPw}
-                onChange={e => setPwForm(f=>({...f,confirmPw:e.target.value}))}
+                onChange={e => setPwForm(f => ({ ...f, confirmPw: e.target.value }))}
                 placeholder="ยืนยันรหัสผ่าน" />
             </Field>
             <div className="form-actions">
@@ -164,25 +134,15 @@ export default function SettingsPage() {
           <div className="settings-card-body">
             <p className="settings-hint">เลือกสกุลเงินที่ใช้แสดงราคาในระบบ</p>
             <div className="currency-options">
-              <button
-                className={`currency-btn ${currency === 'THB' ? 'active' : ''}`}
-                onClick={() => { setCurrency('THB'); toast.success('เปลี่ยนเป็นสกุลเงินบาท (฿)') }}
-              >
+              <button className={`currency-btn ${currency === 'THB' ? 'active' : ''}`}
+                onClick={() => { setCurrency('THB'); toast.success('เปลี่ยนเป็นสกุลเงินบาท (฿)') }}>
                 <span className="currency-symbol">฿</span>
-                <div>
-                  <div className="currency-name">บาทไทย</div>
-                  <div className="currency-code">THB</div>
-                </div>
+                <div><div className="currency-name">บาทไทย</div><div className="currency-code">THB</div></div>
               </button>
-              <button
-                className={`currency-btn ${currency === 'LAK' ? 'active' : ''}`}
-                onClick={() => { setCurrency('LAK'); toast.success('ປ່ຽນເປັນສະກຸນເງິນກີບ (₭)') }}
-              >
+              <button className={`currency-btn ${currency === 'LAK' ? 'active' : ''}`}
+                onClick={() => { setCurrency('LAK'); toast.success('ປ່ຽນເປັນສະກຸນເງິນກີບ (₭)') }}>
                 <span className="currency-symbol">₭</span>
-                <div>
-                  <div className="currency-name">ກີບລາວ</div>
-                  <div className="currency-code">LAK</div>
-                </div>
+                <div><div className="currency-name">ກີບລາວ</div><div className="currency-code">LAK</div></div>
               </button>
             </div>
             <p className="settings-hint" style={{ marginTop: 12 }}>
@@ -196,13 +156,13 @@ export default function SettingsPage() {
           <div className="card-header"><h2 className="card-title"><I.Bell size={14} /> การแจ้งเตือน</h2></div>
           <div className="settings-card-body">
             <div className="notif-status">
-              สถานะ: {' '}
+              สถานะ:{' '}
               <strong style={{ color: notifPerm === 'granted' ? 'var(--accent)' : notifPerm === 'denied' ? 'var(--danger)' : 'var(--muted)' }}>
                 {notifPerm === 'granted' ? 'เปิดใช้งานแล้ว' : notifPerm === 'denied' ? 'ถูกบล็อก' : notifPerm === 'unsupported' ? 'ไม่รองรับ' : 'ยังไม่ได้เปิดใช้งาน'}
               </strong>
             </div>
             <p className="settings-hint" style={{ marginTop: 8 }}>
-              เปิดใช้งานการแจ้งเตือนเพื่อรับการแจ้งเตือนเมื่อสต็อกต่ำ หรือมีนัดหมายใน Desktop
+              เปิดใช้งานการแจ้งเตือนเพื่อรับแจ้งเตือนเมื่อสต็อกต่ำหรือมีนัดหมายใน Desktop
             </p>
             <div style={{ marginTop: 14 }}>
               {notifPerm !== 'granted' && notifPerm !== 'unsupported' && (
@@ -211,56 +171,13 @@ export default function SettingsPage() {
                 </button>
               )}
               {notifPerm === 'granted' && (
-                <button className="btn btn-ghost" onClick={() => new Notification('ทดสอบ', { body:'การแจ้งเตือนทำงานปกติ ✓' })}>
+                <button className="btn btn-ghost" onClick={() => new Notification('ทดสอบ', { body: 'การแจ้งเตือนทำงานปกติ ✓' })}>
                   ทดสอบการแจ้งเตือน
                 </button>
               )}
             </div>
           </div>
         </section>
-
-        {/* Team */}
-        {!profile?.manager_id && (
-          <section className="card" style={{ gridColumn: '1 / -1' }}>
-            <div className="card-header"><h2 className="card-title">👥 ทีมงาน</h2></div>
-            <div className="settings-card-body">
-              <p className="settings-hint">เชิญพนักงานให้เข้าถึงข้อมูลร้านของคุณ — ให้พวกเขาสมัครบัญชีด้วยอีเมลที่ระบุ แล้วติดต่อแอดมินเพื่อเปิดสิทธิ์</p>
-              <form onSubmit={handleInvite} style={{ display:'flex', gap:8, marginTop:12 }}>
-                <input
-                  type="email"
-                  placeholder="อีเมลพนักงาน"
-                  value={inviteEmail}
-                  onChange={e => setInviteEmail(e.target.value)}
-                  style={{ flex:1 }}
-                />
-                <button type="submit" className="btn btn-primary" disabled={inviteSaving || !inviteEmail.trim()}>
-                  {inviteSaving ? <Spinner size={13} color="#fff" /> : 'เชิญ'}
-                </button>
-              </form>
-              {teamMembers.length > 0 && (
-                <div style={{ marginTop:16, display:'flex', flexDirection:'column', gap:8 }}>
-                  {teamMembers.map(m => (
-                    <div key={m.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:'var(--bg)', borderRadius:8, border:'1px solid var(--border)' }}>
-                      <div style={{ width:32, height:32, borderRadius:'50%', background:'var(--accent-soft)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'var(--accent-ink)', flexShrink:0 }}>
-                        {m.email[0].toUpperCase()}
-                      </div>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:13, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.email}</div>
-                        <div style={{ fontSize:11, color:'var(--muted)' }}>{m.status === 'accepted' ? '✅ เข้าร่วมแล้ว' : '⏳ รอการยืนยัน'}</div>
-                      </div>
-                      <button className="icon-btn danger" title="ลบออก" onClick={() => handleRemoveMember(m.id)}>
-                        <I.X size={12} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {teamMembers.length === 0 && (
-                <p style={{ color:'var(--muted)', fontSize:13, marginTop:12 }}>ยังไม่มีสมาชิกในทีม</p>
-              )}
-            </div>
-          </section>
-        )}
 
         {/* App info */}
         <section className="card" style={{ gridColumn: '1 / -1' }}>

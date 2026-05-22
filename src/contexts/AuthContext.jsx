@@ -7,6 +7,8 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false)
+  const [adminViewingOwnerId, setAdminViewingOwnerId] = useState(null)
 
   async function fetchProfile(userId) {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
@@ -22,10 +24,11 @@ export function AuthProvider({ children }) {
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (_event === 'PASSWORD_RECOVERY') setIsRecoveryMode(true)
       const u = session?.user ?? null
       setUser(u)
       if (u) fetchProfile(u.id)
-      else { setProfile(null) }
+      else { setProfile(null); setAdminViewingOwnerId(null) }
     })
 
     return () => subscription.unsubscribe()
@@ -38,6 +41,8 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
+    setAdminViewingOwnerId(null)
+    setIsRecoveryMode(false)
     await supabase.auth.signOut()
   }
 
@@ -56,10 +61,19 @@ export function AuthProvider({ children }) {
     if (user) await fetchProfile(user.id)
   }
 
-  const ownerId = profile?.manager_id ?? user?.id
+  function clearRecoveryMode() {
+    setIsRecoveryMode(false)
+  }
+
+  const isAdmin = profile?.role === 'admin'
+  const ownerId = (isAdmin && adminViewingOwnerId) ? adminViewingOwnerId : (profile?.manager_id ?? user?.id)
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, login, logout, updateProfile, changePassword, refreshProfile, ownerId }}>
+    <AuthContext.Provider value={{
+      user, profile, loading, login, logout, updateProfile, changePassword, refreshProfile,
+      ownerId, isRecoveryMode, clearRecoveryMode,
+      adminViewingOwnerId, setAdminViewingOwnerId, isAdmin,
+    }}>
       {children}
     </AuthContext.Provider>
   )
