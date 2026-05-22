@@ -12,6 +12,7 @@ const NAV = [
   { to: '/suppliers',  label: 'ซัพพลายเออร์',      Icon: I.Truck },
 ]
 const SYSTEM = [
+  { to: '/finance',  label: 'การเงิน',  Icon: I.Wallet },
   { to: '/calendar', label: 'ปฏิทิน',  Icon: I.Calendar },
   { to: '/reports',  label: 'รายงาน',  Icon: I.Chart },
   { to: '/settings', label: 'ตั้งค่า', Icon: I.Gear },

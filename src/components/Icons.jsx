@@ -48,3 +48,7 @@ export const Refresh   = p => <Icon {...p}><path d="M13 4A6 6 0 1 0 14 8"/><path
 export const Package   = p => <Icon {...p}><path d="M8 2L2 5v6l6 3 6-3V5L8 2zM2 5l6 3M8 8v6M14 5l-6 3"/></Icon>
 export const Lock      = p => <Icon {...p}><rect x="4" y="7" width="8" height="7" rx="1"/><path d="M6 7V5a2 2 0 0 1 4 0v2"/><circle cx="8" cy="10.5" r="1" fill="currentColor" stroke="none"/></Icon>
 export const Info      = p => <Icon {...p}><circle cx="8" cy="8" r="6"/><path d="M8 7v5M8 5.5v.5"/></Icon>
+export const Wallet    = p => <Icon {...p}><path d="M2 5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z"/><path d="M11 8.5h2M14 7v3"/></Icon>
+export const TrendUp   = p => <Icon {...p}><path d="M2 11l4-4 3 3 5-6"/><path d="M10 4h4v4"/></Icon>
+export const TrendDown = p => <Icon {...p}><path d="M2 5l4 4 3-3 5 6"/><path d="M10 12h4V8"/></Icon>
+export const Coin      = p => <Icon {...p}><circle cx="8" cy="8" r="6"/><path d="M8 4v8M6 6h3.5a1.5 1.5 0 0 1 0 3H6h4a1.5 1.5 0 0 1 0 3H6"/></Icon>

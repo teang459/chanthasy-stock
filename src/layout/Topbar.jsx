@@ -14,6 +14,7 @@ const PAGE_NAMES = {
   '/suppliers':  'ซัพพลายเออร์',
   '/calendar':   'ปฏิทิน',
   '/reports':    'รายงาน',
+  '/finance':    'การเงิน',
   '/settings':   'ตั้งค่า',
   '/admin':      'Admin Panel',
 }
