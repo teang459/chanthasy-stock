@@ -1,14 +1,10 @@
-# Node / Next.js
-tree-stock-tmp/node_modules/
-tree-stock-tmp/.next/
-tree-stock-tmp/out/
-
-# Separate sub-projects
+node_modules/
+dist/
+.env.local
+.env.*.local
+tree-stock-tmp/
 tree-stock-enterprise/
-
-# Claude Code
 .claude/
-
-# OS
+*.log
 .DS_Store
 Thumbs.db

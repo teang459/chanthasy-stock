@@ -1,0 +1,49 @@
+import React from 'react'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { ToastProvider } from './contexts/ToastContext'
+import Layout from './layout/Layout'
+import LoginPage      from './pages/LoginPage'
+import DashboardPage  from './pages/DashboardPage'
+import StockPage      from './pages/StockPage'
+import LowStockPage   from './pages/LowStockPage'
+import MovementsPage  from './pages/MovementsPage'
+import CategoriesPage from './pages/CategoriesPage'
+import SuppliersPage  from './pages/SuppliersPage'
+import CalendarPage   from './pages/CalendarPage'
+import ReportsPage    from './pages/ReportsPage'
+import SettingsPage   from './pages/SettingsPage'
+import Spinner from './components/Spinner'
+
+function Guard({ children }) {
+  const { user, loading } = useAuth()
+  if (loading) return <div className="fullscreen-center"><Spinner size={36} /></div>
+  if (!user) return <Navigate to="/login" replace />
+  return children
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <ToastProvider>
+        <HashRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/" element={<Guard><Layout /></Guard>}>
+              <Route index            element={<DashboardPage />} />
+              <Route path="stock"      element={<StockPage />} />
+              <Route path="low"        element={<LowStockPage />} />
+              <Route path="movements"  element={<MovementsPage />} />
+              <Route path="categories" element={<CategoriesPage />} />
+              <Route path="suppliers"  element={<SuppliersPage />} />
+              <Route path="calendar"   element={<CalendarPage />} />
+              <Route path="reports"    element={<ReportsPage />} />
+              <Route path="settings"   element={<SettingsPage />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </HashRouter>
+      </ToastProvider>
+    </AuthProvider>
+  )
+}
