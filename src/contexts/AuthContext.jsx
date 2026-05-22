@@ -33,16 +33,19 @@ export function AuthProvider({ children }) {
       if (_event === 'PASSWORD_RECOVERY') setIsRecoveryMode(true)
       if (_event === 'MFA_CHALLENGE_VERIFIED') setMfaRequired(false)
       const u = session?.user ?? null
-      setUser(u)
-      if (u) {
+      if (u && _event === 'SIGNED_IN') {
+        // Hold loading=true during MFA check to prevent dashboard flash
+        setLoading(true)
+        setUser(u)
         fetchProfile(u.id)
-        if (_event === 'SIGNED_IN') {
-          const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-          setMfaRequired(aal?.currentLevel === 'aal1' && aal?.nextLevel === 'aal2')
-        }
-      } else {
-        setProfile(null); setAdminViewingOwnerId(null); setMfaRequired(false)
+        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+        setMfaRequired(aal?.currentLevel === 'aal1' && aal?.nextLevel === 'aal2')
+        setLoading(false)
+        return
       }
+      setUser(u)
+      if (u) fetchProfile(u.id)
+      else { setProfile(null); setAdminViewingOwnerId(null); setMfaRequired(false) }
     })
 
     return () => subscription.unsubscribe()
