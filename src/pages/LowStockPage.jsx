@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
+import { useAuth } from '../contexts/AuthContext'
 import { statusOf, fmtCurrency } from '../lib/utils'
+import { userMessage } from '../lib/errors'
 import { useCurrency } from '../contexts/CurrencyContext'
 import StatusBadge from '../components/StatusBadge'
 import StockBar from '../components/StockBar'
@@ -12,24 +14,26 @@ import * as I from '../components/Icons'
 
 export default function LowStockPage() {
   const { toast } = useToast()
+  const { ownerId } = useAuth()
   const { symbol } = useCurrency()
   const [plants, setPlants] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     load()
-    const ch = supabase.channel('low-page')
-      .on('postgres_changes', { event:'*', schema:'public', table:'plants' }, load)
+    if (!ownerId) return
+    const ch = supabase.channel(`low-page-${ownerId}`)
+      .on('postgres_changes', { event:'*', schema:'public', table:'plants', filter: `owner_id=eq.${ownerId}` }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
-  }, [])
+  }, [ownerId])
 
   async function load() {
     const { data, error } = await supabase
       .from('plants')
       .select('*, categories(name_th,hue)')
       .order('stock')
-    if (error) { toast.error('โหลดข้อมูลไม่สำเร็จ'); setLoading(false); return }
+    if (error) { toast.error(`โหลดข้อมูลไม่สำเร็จ: ${userMessage(error)}`); setLoading(false); return }
     setPlants((data ?? []).filter(p => statusOf(p) !== 'ok'))
     setLoading(false)
   }

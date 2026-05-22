@@ -1,30 +1,41 @@
 -- ================================================================
--- สวนสมใจ STOCK — Supabase Schema
--- รัน SQL นี้ใน Supabase Dashboard > SQL Editor
+-- Chanthasy Stock — Supabase Schema (Production)
+-- รัน SQL นี้ใน Supabase Dashboard > SQL Editor สำหรับ project ใหม่
+-- หรือใช้เป็นเอกสารอ้างอิงสำหรับโครงสร้างปัจจุบัน
 -- ================================================================
 
--- Profiles (เชื่อมกับ auth.users)
+-- ====================================================
+-- Tables
+-- ====================================================
+
+-- Profiles (เชื่อมกับ auth.users; owner = ตัวเอง หรือผูกกับ manager_id ของหัวหน้าทีม)
 CREATE TABLE IF NOT EXISTS profiles (
   id         UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   name       TEXT NOT NULL DEFAULT '',
   role       TEXT NOT NULL DEFAULT 'staff' CHECK (role IN ('admin','staff','viewer')),
   initials   TEXT NOT NULL DEFAULT '',
+  shop_name  TEXT,
+  manager_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  currency   TEXT NOT NULL DEFAULT 'THB' CHECK (currency IN ('THB','LAK')),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Categories (หมวดหมู่)
+-- Categories (per-owner)
 CREATE TABLE IF NOT EXISTS categories (
   id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  code       TEXT NOT NULL UNIQUE,
+  owner_id   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  code       TEXT NOT NULL,
   name_th    TEXT NOT NULL,
   hue        INTEGER NOT NULL DEFAULT 140,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS categories_code_per_owner ON categories(owner_id, code);
 
--- Suppliers (ซัพพลายเออร์)
+-- Suppliers (per-owner)
 CREATE TABLE IF NOT EXISTS suppliers (
   id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  code       TEXT NOT NULL UNIQUE,
+  owner_id   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  code       TEXT NOT NULL,
   name       TEXT NOT NULL,
   contact    TEXT,
   phone      TEXT,
@@ -32,11 +43,13 @@ CREATE TABLE IF NOT EXISTS suppliers (
   note       TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS suppliers_code_per_owner ON suppliers(owner_id, code);
 
--- Plants (ต้นไม้/สินค้า)
+-- Plants (per-owner)
 CREATE TABLE IF NOT EXISTS plants (
   id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  sku         TEXT NOT NULL UNIQUE,
+  owner_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  sku         TEXT NOT NULL,
   name        TEXT NOT NULL,
   name_sci    TEXT,
   category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
@@ -46,24 +59,28 @@ CREATE TABLE IF NOT EXISTS plants (
   price       NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (price >= 0),
   cost        NUMERIC(10,2) CHECK (cost >= 0),
   note        TEXT,
+  image_url   TEXT,
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS plants_sku_per_owner ON plants(owner_id, sku);
 
 -- Movements (ประวัติเคลื่อนไหวสต็อก)
 CREATE TABLE IF NOT EXISTS movements (
   id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  owner_id   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   plant_id   UUID REFERENCES plants(id) ON DELETE CASCADE,
-  type       TEXT NOT NULL CHECK (type IN ('in','out','adjust')),
+  type       TEXT NOT NULL CHECK (type IN ('in','out','adjust','new','delete','rename')),
   qty        INTEGER NOT NULL,
   note       TEXT,
   created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Calendar Events (ปฏิทิน)
+-- Calendar Events
 CREATE TABLE IF NOT EXISTS calendar_events (
   id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  owner_id   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   title      TEXT NOT NULL,
   date       DATE NOT NULL,
   time       TEXT,
@@ -73,38 +90,104 @@ CREATE TABLE IF NOT EXISTS calendar_events (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ================================================================
+-- ====================================================
+-- Helper functions (SECURITY DEFINER bypasses RLS internally)
+-- ====================================================
+
+-- Effective owner: self for shop owners, manager for staff
+CREATE OR REPLACE FUNCTION public.effective_owner_id()
+RETURNS UUID LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $func$
+  SELECT COALESCE(manager_id, id) FROM profiles WHERE id = auth.uid()
+$func$;
+
+-- Can write = team owner OR (admin/staff role within a team)
+CREATE OR REPLACE FUNCTION public.can_write()
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $func$
+  SELECT (manager_id IS NULL OR role IN ('admin','staff'))
+  FROM profiles WHERE id = auth.uid()
+$func$;
+
+-- Can delete = team owner OR admin role within a team
+CREATE OR REPLACE FUNCTION public.can_delete()
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $func$
+  SELECT (manager_id IS NULL OR role = 'admin')
+  FROM profiles WHERE id = auth.uid()
+$func$;
+
+-- Global admin check (cross-tenant)
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $func$
+  SELECT EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin' AND manager_id IS NULL)
+$func$;
+
+-- ====================================================
 -- Row Level Security
--- ================================================================
+-- ====================================================
 
-ALTER TABLE profiles         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE categories       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE suppliers        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE plants           ENABLE ROW LEVEL SECURITY;
-ALTER TABLE movements        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE calendar_events  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE categories      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE suppliers       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE plants          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE movements       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
 
--- ผู้ใช้ที่ login แล้วสามารถ CRUD ข้อมูลทั้งหมดได้
-CREATE POLICY "auth_all" ON profiles        FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "auth_all" ON categories      FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "auth_all" ON suppliers       FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "auth_all" ON plants          FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "auth_all" ON movements       FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "auth_all" ON calendar_events FOR ALL TO authenticated USING (true) WITH CHECK (true);
+-- Profiles: self_only + admin_bypass
+CREATE POLICY profiles_self    ON profiles FOR ALL
+  USING (id = auth.uid()) WITH CHECK (id = auth.uid());
+CREATE POLICY profiles_admin   ON profiles FOR ALL
+  USING (is_admin())      WITH CHECK (is_admin());
 
--- ================================================================
--- Trigger: สร้าง profile อัตโนมัติเมื่อมีผู้ใช้ใหม่
--- ================================================================
+-- Plants
+CREATE POLICY plants_select ON plants FOR SELECT USING (owner_id = effective_owner_id());
+CREATE POLICY plants_insert ON plants FOR INSERT WITH CHECK (owner_id = effective_owner_id() AND can_write());
+CREATE POLICY plants_update ON plants FOR UPDATE USING (owner_id = effective_owner_id() AND can_write())  WITH CHECK (owner_id = effective_owner_id() AND can_write());
+CREATE POLICY plants_delete ON plants FOR DELETE USING (owner_id = effective_owner_id() AND can_delete());
+CREATE POLICY plants_admin  ON plants FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+
+-- Categories
+CREATE POLICY categories_select ON categories FOR SELECT USING (owner_id = effective_owner_id());
+CREATE POLICY categories_insert ON categories FOR INSERT WITH CHECK (owner_id = effective_owner_id() AND can_write());
+CREATE POLICY categories_update ON categories FOR UPDATE USING (owner_id = effective_owner_id() AND can_write())  WITH CHECK (owner_id = effective_owner_id() AND can_write());
+CREATE POLICY categories_delete ON categories FOR DELETE USING (owner_id = effective_owner_id() AND can_delete());
+CREATE POLICY categories_admin  ON categories FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+
+-- Suppliers
+CREATE POLICY suppliers_select ON suppliers FOR SELECT USING (owner_id = effective_owner_id());
+CREATE POLICY suppliers_insert ON suppliers FOR INSERT WITH CHECK (owner_id = effective_owner_id() AND can_write());
+CREATE POLICY suppliers_update ON suppliers FOR UPDATE USING (owner_id = effective_owner_id() AND can_write())  WITH CHECK (owner_id = effective_owner_id() AND can_write());
+CREATE POLICY suppliers_delete ON suppliers FOR DELETE USING (owner_id = effective_owner_id() AND can_delete());
+CREATE POLICY suppliers_admin  ON suppliers FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+
+-- Movements (no UPDATE/DELETE for staff, only owner/admin)
+CREATE POLICY movements_select ON movements FOR SELECT USING (owner_id = effective_owner_id());
+CREATE POLICY movements_insert ON movements FOR INSERT WITH CHECK (owner_id = effective_owner_id() AND can_write());
+CREATE POLICY movements_update ON movements FOR UPDATE USING (owner_id = effective_owner_id() AND can_delete())  WITH CHECK (owner_id = effective_owner_id() AND can_delete());
+CREATE POLICY movements_delete ON movements FOR DELETE USING (owner_id = effective_owner_id() AND can_delete());
+CREATE POLICY movements_admin  ON movements FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+
+-- Calendar
+CREATE POLICY calendar_select ON calendar_events FOR SELECT USING (owner_id = effective_owner_id());
+CREATE POLICY calendar_insert ON calendar_events FOR INSERT WITH CHECK (owner_id = effective_owner_id() AND can_write());
+CREATE POLICY calendar_update ON calendar_events FOR UPDATE USING (owner_id = effective_owner_id() AND can_write())  WITH CHECK (owner_id = effective_owner_id() AND can_write());
+CREATE POLICY calendar_delete ON calendar_events FOR DELETE USING (owner_id = effective_owner_id() AND can_delete());
+CREATE POLICY calendar_admin  ON calendar_events FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+
+-- ====================================================
+-- Trigger: create profile when user signs up
+-- ====================================================
 
 CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_manager UUID;
 BEGIN
-  INSERT INTO profiles (id, name, role, initials)
+  -- Auto-link to manager if email is in a team_invites table (left out for now)
+  INSERT INTO public.profiles (id, name, role, initials)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'role', 'staff'),
-    COALESCE(NEW.raw_user_meta_data->>'initials', upper(left(split_part(NEW.email,'@',1), 2)))
+    'staff',
+    upper(left(split_part(NEW.email,'@',1), 2))
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
@@ -116,7 +199,7 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
--- Trigger: อัปเดต updated_at อัตโนมัติ
+-- Trigger: auto-update updated_at
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
@@ -126,46 +209,68 @@ DROP TRIGGER IF EXISTS plants_updated_at ON plants;
 CREATE TRIGGER plants_updated_at BEFORE UPDATE ON plants
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- ================================================================
--- Seed Data (ข้อมูลตัวอย่าง)
--- ================================================================
+DROP TRIGGER IF EXISTS profiles_updated_at ON profiles;
+CREATE TRIGGER profiles_updated_at BEFORE UPDATE ON profiles
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
-INSERT INTO categories (code, name_th, hue) VALUES
-  ('flower',    'ไม้ดอก',     340),
-  ('foliage',   'ไม้ใบ',      140),
-  ('succulent', 'ไม้อวบน้ำ',   60),
-  ('herb',      'สมุนไพร',    170),
-  ('tree',      'ไม้ยืนต้น',  100)
-ON CONFLICT (code) DO NOTHING;
+-- ====================================================
+-- RPC: adjust_stock (used by StockPage UI)
+-- ====================================================
 
-INSERT INTO suppliers (code, name, contact, phone) VALUES
-  ('SUP001', 'สวนป้าแดง',         'คุณแดง',  '081-234-5678'),
-  ('SUP002', 'ฟาร์มเขียวขจี',     'คุณเขียว','089-876-5432'),
-  ('SUP003', 'บริษัทพืชสวนไทย',   'ฝ่ายขาย', '02-345-6789')
-ON CONFLICT (code) DO NOTHING;
+CREATE OR REPLACE FUNCTION adjust_stock(p_plant_id UUID, p_type TEXT, p_qty INTEGER, p_note TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_plant plants%ROWTYPE;
+  v_new_stock INTEGER;
+  v_qty_signed INTEGER;
+BEGIN
+  SELECT * INTO v_plant FROM plants WHERE id = p_plant_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Plant not found'; END IF;
 
--- Plants seed (อ้างอิง category/supplier ด้วย subquery)
-INSERT INTO plants (sku, name, name_sci, category_id, supplier_id, stock, min_stock, price, cost)
-SELECT 'PLT001','กุหลาบ','Rosa',c.id,s.id,45,10,120,80
-  FROM categories c, suppliers s WHERE c.code='flower' AND s.code='SUP001'
-ON CONFLICT (sku) DO NOTHING;
+  IF p_type = 'in'      THEN v_new_stock := v_plant.stock + p_qty; v_qty_signed := p_qty;
+  ELSIF p_type = 'out'  THEN v_new_stock := v_plant.stock - p_qty; v_qty_signed := -p_qty;
+                              IF v_new_stock < 0 THEN RAISE EXCEPTION 'Insufficient stock'; END IF;
+  ELSIF p_type = 'adjust' THEN v_new_stock := p_qty; v_qty_signed := p_qty - v_plant.stock;
+  ELSE RAISE EXCEPTION 'Invalid adjustment type';
+  END IF;
 
-INSERT INTO plants (sku, name, name_sci, category_id, supplier_id, stock, min_stock, price, cost)
-SELECT 'PLT002','ต้นมอนสเตอร่า','Monstera deliciosa',c.id,s.id,12,5,350,200
-  FROM categories c, suppliers s WHERE c.code='foliage' AND s.code='SUP002'
-ON CONFLICT (sku) DO NOTHING;
+  UPDATE plants SET stock = v_new_stock, updated_at = NOW() WHERE id = p_plant_id;
+  INSERT INTO movements (owner_id, plant_id, type, qty, note, created_by)
+  VALUES (v_plant.owner_id, p_plant_id, p_type, v_qty_signed, p_note, auth.uid());
+END;
+$$;
 
-INSERT INTO plants (sku, name, name_sci, category_id, supplier_id, stock, min_stock, price, cost)
-SELECT 'PLT003','กระบองเพชร','Cactus',c.id,s.id,3,5,85,40
-  FROM categories c, suppliers s WHERE c.code='succulent' AND s.code='SUP001'
-ON CONFLICT (sku) DO NOTHING;
+-- ====================================================
+-- RPC: get_all_shops_for_admin (used by AdminPage)
+-- ====================================================
 
-INSERT INTO plants (sku, name, name_sci, category_id, supplier_id, stock, min_stock, price, cost)
-SELECT 'PLT004','ใบเตย','Pandanus amaryllifolius',c.id,s.id,0,8,30,15
-  FROM categories c, suppliers s WHERE c.code='herb' AND s.code='SUP002'
-ON CONFLICT (sku) DO NOTHING;
+CREATE OR REPLACE FUNCTION public.get_all_shops_for_admin()
+RETURNS TABLE(
+  id UUID, name TEXT, shop_name TEXT, role TEXT,
+  plant_count BIGINT, updated_at TIMESTAMPTZ, email TEXT, manager_id UUID
+) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT is_admin() THEN
+    RAISE EXCEPTION 'Unauthorized' USING ERRCODE = '42501';
+  END IF;
+  RETURN QUERY
+    SELECT
+      p.id, p.name, p.shop_name, p.role,
+      COALESCE((SELECT COUNT(*) FROM plants WHERE owner_id = p.id), 0) AS plant_count,
+      p.updated_at,
+      u.email::TEXT,
+      p.manager_id
+    FROM profiles p
+    LEFT JOIN auth.users u ON u.id = p.id
+    ORDER BY p.updated_at DESC NULLS LAST;
+END;
+$$;
 
-INSERT INTO plants (sku, name, name_sci, category_id, supplier_id, stock, min_stock, price, cost)
-SELECT 'PLT005','ต้นโอ๊ค','Quercus',c.id,s.id,8,3,450,280
-  FROM categories c, suppliers s WHERE c.code='tree' AND s.code='SUP003'
-ON CONFLICT (sku) DO NOTHING;
+GRANT EXECUTE ON FUNCTION get_all_shops_for_admin() TO authenticated;
+
+-- ====================================================
+-- Storage bucket: plant-images
+-- ====================================================
+-- Create bucket via Dashboard or:
+-- INSERT INTO storage.buckets (id, name, public) VALUES ('plant-images','plant-images', true);
+-- Storage policies should allow authenticated users to upload to their own owner_id folder.

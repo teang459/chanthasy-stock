@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Navigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import { userMessage } from '../lib/errors'
 import * as I from '../components/Icons'
 import Spinner from '../components/Spinner'
 
@@ -44,7 +45,7 @@ export default function LoginPage() {
     })
     setResetLoading(false)
     if (err) {
-      setError(err.message)
+      setError(userMessage(err))
     } else {
       setResetDone(true)
     }

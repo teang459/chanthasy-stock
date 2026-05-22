@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import * as I from '../components/Icons'
@@ -14,17 +15,30 @@ const PAGE_NAMES = {
   '/calendar':   'ปฏิทิน',
   '/reports':    'รายงาน',
   '/settings':   'ตั้งค่า',
+  '/admin':      'Admin Panel',
 }
 
 export default function Topbar({ onMenuToggle, lowCount, notifications, onNotifToggle, showNotif }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { profile } = useAuth()
+  const { profile, ownerId, adminViewingOwnerId, isAdmin } = useAuth()
   const { toast } = useToast()
   const [q, setQ] = useState('')
+  const [viewingShopName, setViewingShopName] = useState('')
   const inputRef = useRef()
   const here = PAGE_NAMES[location.pathname] ?? 'หน้า'
-  const shopName = profile?.shop_name?.trim() || 'My Shop'
+
+  // When admin is viewing another shop, show that shop's name in the topbar
+  useEffect(() => {
+    if (isAdmin && adminViewingOwnerId) {
+      supabase.from('profiles').select('shop_name, name').eq('id', adminViewingOwnerId).single()
+        .then(({ data }) => setViewingShopName(data?.shop_name || data?.name || ''))
+    } else {
+      setViewingShopName('')
+    }
+  }, [adminViewingOwnerId, isAdmin])
+
+  const shopName = viewingShopName || profile?.shop_name?.trim() || 'My Shop'
 
   useEffect(() => {
     const handler = e => {
@@ -64,7 +78,6 @@ export default function Topbar({ onMenuToggle, lowCount, notifications, onNotifT
           placeholder="ค้นหา SKU, ชื่อต้นไม้…"
           value={q}
           onChange={handleSearch}
-          onBlur={() => setQ('')}
         />
         <span className="kbd">⌘K</span>
       </div>

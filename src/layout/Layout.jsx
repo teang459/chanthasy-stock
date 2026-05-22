@@ -18,15 +18,17 @@ export default function Layout() {
   const [adminViewingName, setAdminViewingName] = useState('')
 
   useEffect(() => {
-    if (profile && !profile.shop_name && !localStorage.getItem('onboarding_done')) {
+    // Only show onboarding to team owners (no manager_id), not to staff members
+    if (profile && !profile.manager_id && !profile.shop_name && !localStorage.getItem('onboarding_done')) {
       setShowOnboarding(true)
     }
   }, [profile])
 
   useEffect(() => {
     fetchLow()
-    const ch = supabase.channel('layout-plants')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'plants' }, fetchLow)
+    if (!ownerId) return
+    const ch = supabase.channel(`layout-plants-${ownerId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'plants', filter: `owner_id=eq.${ownerId}` }, fetchLow)
       .subscribe()
     return () => supabase.removeChannel(ch)
   }, [ownerId])

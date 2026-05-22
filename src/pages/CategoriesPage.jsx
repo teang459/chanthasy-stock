@@ -8,6 +8,7 @@ import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import Field from '../components/Field'
 import * as I from '../components/Icons'
+import { userMessage } from '../lib/errors'
 
 const EMPTY = { code:'', name_th:'', hue:140 }
 const HUES = [
@@ -23,7 +24,9 @@ const HUES = [
 
 export default function CategoriesPage() {
   const { toast } = useToast()
-  const { user, ownerId } = useAuth()
+  const { user, ownerId, profile } = useAuth()
+  const canWrite  = !profile?.manager_id || ['admin', 'staff'].includes(profile?.role)
+  const canDelete = !profile?.manager_id || profile?.role === 'admin'
   const [cats, setCats]         = useState([])
   const [counts, setCounts]     = useState({})
   const [loading, setLoading]   = useState(true)
@@ -78,8 +81,8 @@ export default function CategoriesPage() {
       setShowForm(false)
       load()
     } catch (err) {
-      if (err.code === '23505') setErrors({ code: 'รหัสนี้มีอยู่แล้ว' })
-      else toast.error(`เกิดข้อผิดพลาด: ${err.message}`)
+      if (err.code === '23505') setErrors({ code: 'รหัสนี้มีอยู่แล้วในร้านของคุณ' })
+      else toast.error(userMessage(err))
     } finally { setSaving(false) }
   }
 
@@ -90,7 +93,7 @@ export default function CategoriesPage() {
       toast.success('ลบหมวดหมู่สำเร็จ')
       load()
     } catch (err) {
-      toast.error(`ลบไม่สำเร็จ: ${err.message}`)
+      toast.error(userMessage(err))
     }
     setDelItem(null)
   }
@@ -104,7 +107,7 @@ export default function CategoriesPage() {
           <h1 className="page-title">หมวดหมู่</h1>
           <p className="page-sub">{cats.length} หมวดหมู่</p>
         </div>
-        <button className="btn btn-primary" onClick={openAdd}><I.Plus size={13} /> เพิ่มหมวดหมู่</button>
+        {canWrite && <button className="btn btn-primary" onClick={openAdd}><I.Plus size={13} /> เพิ่มหมวดหมู่</button>}
       </div>
 
       {cats.length === 0 ? (
@@ -119,8 +122,8 @@ export default function CategoriesPage() {
                 <div className="cat-code">{c.code} · {counts[c.id] ?? 0} รายการ</div>
               </div>
               <div className="cat-actions">
-                <button className="icon-btn" onClick={() => openEdit(c)} title="แก้ไข"><I.Edit size={13} /></button>
-                <button className="icon-btn danger" onClick={() => setDelItem(c)} title="ลบ"><I.Trash size={13} /></button>
+                {canWrite && <button className="icon-btn" onClick={() => openEdit(c)} title="แก้ไข"><I.Edit size={13} /></button>}
+                {canDelete && <button className="icon-btn danger" onClick={() => setDelItem(c)} title="ลบ"><I.Trash size={13} /></button>}
               </div>
             </div>
           ))}

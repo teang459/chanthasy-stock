@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
 import { useAuth } from '../contexts/AuthContext'
 import { statusOf, fmtCurrency, generateSKU, downloadCSV, statusLabel } from '../lib/utils'
+import { userMessage } from '../lib/errors'
+import { compressImage, storagePath, MAX_IMAGE_BYTES } from '../lib/image'
 import { useCurrency } from '../contexts/CurrencyContext'
 import Modal from '../components/Modal'
 import Confirm from '../components/Confirm'
@@ -18,7 +20,9 @@ const EMPTY = { sku:'',name:'',name_sci:'',category_id:'',supplier_id:'',stock:0
 
 export default function StockPage() {
   const { toast } = useToast()
-  const { user, ownerId } = useAuth()
+  const { user, ownerId, profile } = useAuth()
+  const canWrite  = !profile?.manager_id || ['admin', 'staff'].includes(profile?.role)
+  const canDelete = !profile?.manager_id || profile?.role === 'admin'
   const { symbol } = useCurrency()
   const location = useLocation()
 
@@ -47,11 +51,12 @@ export default function StockPage() {
 
   useEffect(() => {
     load()
-    const ch = supabase.channel('stock-page')
-      .on('postgres_changes', { event:'*', schema:'public', table:'plants' }, loadPlants)
+    if (!ownerId) return
+    const ch = supabase.channel(`stock-page-${ownerId}`)
+      .on('postgres_changes', { event:'*', schema:'public', table:'plants', filter: `owner_id=eq.${ownerId}` }, loadPlants)
       .subscribe()
     return () => supabase.removeChannel(ch)
-  }, [])
+  }, [ownerId])
 
   async function load() {
     setLoading(true)
@@ -105,14 +110,31 @@ export default function StockPage() {
   async function handleImageUpload(e) {
     const file = e.target.files?.[0]
     if (!file) return
+    if (file.size > MAX_IMAGE_BYTES) { toast.error('รูปต้องไม่เกิน 3MB'); return }
     setImgUploading(true)
-    const ext = file.name.split('.').pop()
-    const path = `${user.id}/${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('plant-images').upload(path, file, { upsert: true })
-    if (error) { toast.error('อัปโหลดรูปไม่สำเร็จ'); setImgUploading(false); return }
-    const { data: { publicUrl } } = supabase.storage.from('plant-images').getPublicUrl(path)
-    setF('image_url', publicUrl)
-    setImgUploading(false)
+    try {
+      const compressed = await compressImage(file)
+      const path = `${ownerId}/${Date.now()}.jpg`
+      const { error } = await supabase.storage.from('plant-images').upload(path, compressed, { upsert: true, contentType: 'image/jpeg' })
+      if (error) throw error
+      const { data: { publicUrl } } = supabase.storage.from('plant-images').getPublicUrl(path)
+      // Cleanup previous image if replaced
+      const oldPath = storagePath(form.image_url)
+      if (oldPath && oldPath !== path) {
+        supabase.storage.from('plant-images').remove([oldPath]).catch(() => {})
+      }
+      setF('image_url', publicUrl)
+    } catch (err) {
+      toast.error(`อัปโหลดรูปไม่สำเร็จ: ${userMessage(err)}`)
+    } finally {
+      setImgUploading(false)
+    }
+  }
+
+  function removeImage() {
+    const oldPath = storagePath(form.image_url)
+    if (oldPath) supabase.storage.from('plant-images').remove([oldPath]).catch(() => {})
+    setF('image_url', '')
   }
 
   async function handleSave(e) {
@@ -145,8 +167,8 @@ export default function StockPage() {
       setShowForm(false)
       loadPlants()
     } catch (err) {
-      if (err.code === '23505') setErrors({ sku: 'SKU นี้มีอยู่แล้วในระบบ' })
-      else toast.error(`เกิดข้อผิดพลาด: ${err.message}`)
+      if (err.code === '23505') setErrors({ sku: 'SKU นี้มีอยู่แล้วในร้านของคุณ' })
+      else toast.error(userMessage(err))
     } finally {
       setSaving(false)
     }
@@ -154,12 +176,15 @@ export default function StockPage() {
 
   async function handleDelete(p) {
     try {
+      // Cleanup storage image first
+      const path = storagePath(p.image_url)
+      if (path) supabase.storage.from('plant-images').remove([path]).catch(() => {})
       const { error } = await supabase.from('plants').delete().eq('id', p.id)
       if (error) throw error
       toast.success('ลบต้นไม้สำเร็จ')
       loadPlants()
     } catch (err) {
-      toast.error(`ลบไม่สำเร็จ: ${err.message}`)
+      toast.error(userMessage(err))
     }
     setDelItem(null)
   }
@@ -182,7 +207,7 @@ export default function StockPage() {
       setAdjItem(null)
       loadPlants()
     } catch (err) {
-      toast.error(`เกิดข้อผิดพลาด: ${err.message}`)
+      toast.error(userMessage(err))
     } finally {
       setSaving(false)
     }
@@ -240,7 +265,7 @@ export default function StockPage() {
         </div>
         <div className="page-actions">
           <button className="btn btn-ghost" onClick={handleExport}><I.Download size={13} /> ส่งออก</button>
-          <button className="btn btn-primary" onClick={openAdd}><I.Plus size={13} /> เพิ่มต้นไม้</button>
+          {canWrite && <button className="btn btn-primary" onClick={openAdd}><I.Plus size={13} /> เพิ่มต้นไม้</button>}
         </div>
       </div>
 
@@ -297,9 +322,9 @@ export default function StockPage() {
                   <td><StatusBadge status={statusOf(p)} /></td>
                   <td>
                     <div className="row-actions">
-                      <button className="icon-btn" title="ปรับสต็อก" onClick={() => { setAdjItem(p); setAdjForm({ type:'in',qty:1,note:'' }) }}><I.Adjust size={13} /></button>
-                      <button className="icon-btn" title="แก้ไข" onClick={() => openEdit(p)}><I.Edit size={13} /></button>
-                      <button className="icon-btn danger" title="ลบ" onClick={() => setDelItem(p)}><I.Trash size={13} /></button>
+                      {canWrite && <button className="icon-btn" title="ปรับสต็อก" onClick={() => { setAdjItem(p); setAdjForm({ type:'in',qty:1,note:'' }) }}><I.Adjust size={13} /></button>}
+                      {canWrite && <button className="icon-btn" title="แก้ไข" onClick={() => openEdit(p)}><I.Edit size={13} /></button>}
+                      {canDelete && <button className="icon-btn danger" title="ลบ" onClick={() => setDelItem(p)}><I.Trash size={13} /></button>}
                     </div>
                   </td>
                 </tr>
@@ -369,7 +394,7 @@ export default function StockPage() {
                   </label>
                   {form.image_url && (
                     <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px', marginLeft: 8, color: 'var(--muted)' }}
-                      onClick={() => setF('image_url', '')}>ลบรูป</button>
+                      onClick={removeImage}>ลบรูป</button>
                   )}
                 </div>
               </div>

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
 import { fmtDateTime, downloadCSV } from '../lib/utils'
+import { userMessage } from '../lib/errors'
 import EmptyState from '../components/EmptyState'
 import Spinner from '../components/Spinner'
 import * as I from '../components/Icons'
@@ -25,7 +26,7 @@ export default function MovementsPage() {
       .select('*, plants(id,name,sku)')
       .order('created_at', { ascending: false })
       .limit(500)
-    if (error) { toast.error('โหลดไม่สำเร็จ'); setLoading(false); return }
+    if (error) { toast.error(`โหลดไม่สำเร็จ: ${userMessage(error)}`); setLoading(false); return }
     setMoves(data ?? [])
     setLoading(false)
   }

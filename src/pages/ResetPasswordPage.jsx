@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { userMessage, passwordIssue } from '../lib/errors'
 import * as I from '../components/Icons'
 import Spinner from '../components/Spinner'
 
@@ -22,12 +23,13 @@ export default function ResetPasswordPage() {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    if (password.length < 6) { setError('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); return }
-    if (password !== confirm) { setError('รหัสผ่านไม่ตรงกัน'); return }
+    const pwIssue = passwordIssue(password)
+    if (pwIssue)                { setError(pwIssue); return }
+    if (password !== confirm)   { setError('รหัสผ่านไม่ตรงกัน'); return }
     setLoading(true)
     const { error: err } = await supabase.auth.updateUser({ password })
     setLoading(false)
-    if (err) { setError(err.message); return }
+    if (err) { setError(userMessage(err)); return }
     clearRecoveryMode()
     setDone(true)
     setTimeout(() => navigate('/', { replace: true }), 2000)
@@ -57,7 +59,7 @@ export default function ResetPasswordPage() {
               <div style={{ position: 'relative' }}>
                 <input
                   type={showPw ? 'text' : 'password'}
-                  placeholder="อย่างน้อย 6 ตัวอักษร"
+                  placeholder="อย่างน้อย 8 ตัวอักษร + ตัวเลข"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   autoFocus

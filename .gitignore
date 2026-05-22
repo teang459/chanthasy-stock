@@ -8,3 +8,4 @@ tree-stock-enterprise/
 *.log
 .DS_Store
 Thumbs.db
+supabase/.temp/

@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
+import { userMessage } from '../lib/errors'
 import Spinner from '../components/Spinner'
 
 const ROLES = [
@@ -52,7 +53,7 @@ export default function AdminPage() {
       .eq('id', shopId)
     setSaving(false)
     if (error) {
-      toast.error(`บันทึกไม่สำเร็จ: ${error.message}`)
+      toast.error(`บันทึกไม่สำเร็จ: ${userMessage(error)}`)
     } else {
       toast.success('บันทึกสำเร็จ')
       setEditingId(null)
@@ -86,6 +87,7 @@ export default function AdminPage() {
             <thead>
               <tr>
                 <th>ผู้ใช้</th>
+                <th>อีเมล</th>
                 <th>ชื่อร้าน</th>
                 <th>บทบาท</th>
                 <th>ต้นไม้</th>
@@ -99,8 +101,12 @@ export default function AdminPage() {
                   <tr>
                     <td>
                       <div style={{ fontWeight: 500 }}>{s.name || '—'}</div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>{s.id.slice(0, 8)}…</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>
+                        {s.id.slice(0, 8)}…
+                        {s.manager_id && <span style={{ marginLeft: 6, color: 'oklch(55% 0.18 250)' }}>↳ staff</span>}
+                      </div>
                     </td>
+                    <td style={{ fontSize: 12 }}>{s.email || <span style={{ color: 'var(--muted)' }}>—</span>}</td>
                     <td>{s.shop_name || <span style={{ color: 'var(--muted)' }}>ยังไม่ตั้ง</span>}</td>
                     <td>
                       <span className={`badge ${s.role === 'admin' ? 'badge--info' : ''}`}>
@@ -125,7 +131,7 @@ export default function AdminPage() {
 
                   {editingId === s.id && (
                     <tr>
-                      <td colSpan={6} style={{ background: 'var(--bg)', padding: '12px 16px' }}>
+                      <td colSpan={7} style={{ background: 'var(--bg)', padding: '12px 16px' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto auto', gap: 8, alignItems: 'end' }}>
                           <div>
                             <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>ชื่อผู้ใช้</div>

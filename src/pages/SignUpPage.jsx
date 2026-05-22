@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Navigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import { userMessage, passwordIssue } from '../lib/errors'
 import * as I from '../components/Icons'
 import Spinner from '../components/Spinner'
 
@@ -20,9 +21,10 @@ export default function SignUpPage() {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    if (!email.trim())       { setError('กรุณาระบุอีเมล'); return }
-    if (password.length < 6) { setError('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); return }
-    if (password !== confirm) { setError('รหัสผ่านไม่ตรงกัน'); return }
+    if (!email.trim())                  { setError('กรุณาระบุอีเมล'); return }
+    const pwIssue = passwordIssue(password)
+    if (pwIssue)                        { setError(pwIssue); return }
+    if (password !== confirm)           { setError('รหัสผ่านไม่ตรงกัน'); return }
     setLoading(true)
     const { data, error: err } = await supabase.auth.signUp({
       email: email.trim(),
@@ -30,7 +32,7 @@ export default function SignUpPage() {
       options: { emailRedirectTo: 'https://teang459.github.io/chanthasy-stock' },
     })
     setLoading(false)
-    if (err) { setError(err.message); return }
+    if (err) { setError(userMessage(err)); return }
     // auto-confirm: session is immediately available → auth state will redirect
     if (!data.session) setDone(true)
   }
@@ -93,7 +95,7 @@ export default function SignUpPage() {
             <div style={{ position: 'relative' }}>
               <input
                 type={showPw ? 'text' : 'password'}
-                placeholder="อย่างน้อย 6 ตัวอักษร"
+                placeholder="อย่างน้อย 8 ตัวอักษร + ตัวเลข"
                 value={password}
                 onChange={e => setPass(e.target.value)}
                 autoComplete="new-password"

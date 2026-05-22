@@ -8,12 +8,15 @@ import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import Field from '../components/Field'
 import * as I from '../components/Icons'
+import { userMessage } from '../lib/errors'
 
 const EMPTY = { code:'', name:'', contact:'', phone:'', email:'', note:'' }
 
 export default function SuppliersPage() {
   const { toast } = useToast()
-  const { user, ownerId } = useAuth()
+  const { user, ownerId, profile } = useAuth()
+  const canWrite  = !profile?.manager_id || ['admin', 'staff'].includes(profile?.role)
+  const canDelete = !profile?.manager_id || profile?.role === 'admin'
   const [sups, setSups]         = useState([])
   const [counts, setCounts]     = useState({})
   const [loading, setLoading]   = useState(true)
@@ -70,8 +73,8 @@ export default function SuppliersPage() {
       setShowForm(false)
       load()
     } catch (err) {
-      if (err.code === '23505') setErrors({ code: 'รหัสนี้มีอยู่แล้ว' })
-      else toast.error(`เกิดข้อผิดพลาด: ${err.message}`)
+      if (err.code === '23505') setErrors({ code: 'รหัสนี้มีอยู่แล้วในร้านของคุณ' })
+      else toast.error(userMessage(err))
     } finally { setSaving(false) }
   }
 
@@ -81,7 +84,7 @@ export default function SuppliersPage() {
       if (error) throw error
       toast.success('ลบซัพพลายเออร์สำเร็จ')
       load()
-    } catch (err) { toast.error(`ลบไม่สำเร็จ: ${err.message}`) }
+    } catch (err) { toast.error(userMessage(err)) }
     setDelItem(null)
   }
 
@@ -97,7 +100,7 @@ export default function SuppliersPage() {
     <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">ซัพพลายเออร์</h1><p className="page-sub">{sups.length} ราย</p></div>
-        <button className="btn btn-primary" onClick={openAdd}><I.Plus size={13} /> เพิ่มซัพพลายเออร์</button>
+        {canWrite && <button className="btn btn-primary" onClick={openAdd}><I.Plus size={13} /> เพิ่มซัพพลายเออร์</button>}
       </div>
 
       <div className="filters">
@@ -127,8 +130,8 @@ export default function SuppliersPage() {
                   <td><span className="badge badge--ok">{counts[s.id] ?? 0} รายการ</span></td>
                   <td>
                     <div className="row-actions">
-                      <button className="icon-btn" onClick={() => openEdit(s)} title="แก้ไข"><I.Edit size={13} /></button>
-                      <button className="icon-btn danger" onClick={() => setDelItem(s)} title="ลบ"><I.Trash size={13} /></button>
+                      {canWrite && <button className="icon-btn" onClick={() => openEdit(s)} title="แก้ไข"><I.Edit size={13} /></button>}
+                      {canDelete && <button className="icon-btn danger" onClick={() => setDelItem(s)} title="ลบ"><I.Trash size={13} /></button>}
                     </div>
                   </td>
                 </tr>

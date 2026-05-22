@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
 import { useAuth } from '../contexts/AuthContext'
 import { MONTH_TH, DAY_TH, calDaysInMonth, calFirstDay } from '../lib/utils'
+import { userMessage } from '../lib/errors'
 import Modal from '../components/Modal'
 import Confirm from '../components/Confirm'
 import Spinner from '../components/Spinner'
@@ -21,7 +22,7 @@ const EMPTY = { title:'', date:'', time:'', type:'general', note:'' }
 
 export default function CalendarPage() {
   const { toast } = useToast()
-  const { user } = useAuth()
+  const { user, ownerId } = useAuth()
   const now = new Date()
   const [year, setYear]   = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
@@ -37,11 +38,12 @@ export default function CalendarPage() {
 
   useEffect(() => {
     load()
-    const ch = supabase.channel('calendar')
-      .on('postgres_changes', { event:'*', schema:'public', table:'calendar_events' }, load)
+    if (!ownerId) return
+    const ch = supabase.channel(`calendar-${ownerId}`)
+      .on('postgres_changes', { event:'*', schema:'public', table:'calendar_events', filter: `owner_id=eq.${ownerId}` }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
-  }, [year, month])
+  }, [year, month, ownerId])
 
   async function load() {
     const from = `${year}-${String(month+1).padStart(2,'0')}-01`
@@ -94,7 +96,7 @@ export default function CalendarPage() {
     if (Object.keys(errs).length) { setErrors(errs); return }
     setSaving(true)
     try {
-      const payload = { title:form.title.trim(), date:form.date, time:form.time||null, type:form.type, note:form.note?.trim()||null, created_by:user?.id, owner_id:user?.id }
+      const payload = { title:form.title.trim(), date:form.date, time:form.time||null, type:form.type, note:form.note?.trim()||null, created_by:user?.id, owner_id: ownerId }
       if (editItem) {
         const { error } = await supabase.from('calendar_events').update(payload).eq('id', editItem.id)
         if (error) throw error
@@ -106,7 +108,7 @@ export default function CalendarPage() {
       }
       setShowForm(false)
       load()
-    } catch (err) { toast.error(`เกิดข้อผิดพลาด: ${err.message}`) }
+    } catch (err) { toast.error(userMessage(err)) }
     finally { setSaving(false) }
   }
 
@@ -116,7 +118,7 @@ export default function CalendarPage() {
       if (error) throw error
       toast.success('ลบ Event สำเร็จ')
       load()
-    } catch (err) { toast.error(`ลบไม่สำเร็จ: ${err.message}`) }
+    } catch (err) { toast.error(userMessage(err)) }
     setDelItem(null)
   }
 

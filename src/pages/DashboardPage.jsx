@@ -1,25 +1,29 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { statusOf, fmtCurrency, fmtDateTime } from '../lib/utils'
 import { useCurrency } from '../contexts/CurrencyContext'
+import { useAuth } from '../contexts/AuthContext'
 import StatusBadge from '../components/StatusBadge'
 import Spinner from '../components/Spinner'
 import * as I from '../components/Icons'
 
 export default function DashboardPage() {
   const { symbol } = useCurrency()
+  const { ownerId } = useAuth()
   const [plants, setPlants]    = useState([])
   const [moves, setMoves]      = useState([])
   const [loading, setLoading]  = useState(true)
 
   useEffect(() => {
     fetchAll()
-    const ch = supabase.channel('dash')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'plants' }, fetchAll)
+    if (!ownerId) return
+    const ch = supabase.channel(`dash-${ownerId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'plants',    filter: `owner_id=eq.${ownerId}` }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'movements', filter: `owner_id=eq.${ownerId}` }, fetchAll)
       .subscribe()
     return () => supabase.removeChannel(ch)
-  }, [])
+  }, [ownerId])
 
   async function fetchAll() {
     const [{ data: p }, { data: m }] = await Promise.all([
@@ -31,13 +35,16 @@ export default function DashboardPage() {
     setLoading(false)
   }
 
-  const total  = plants.length
-  const ok     = plants.filter(p => statusOf(p) === 'ok').length
-  const low    = plants.filter(p => statusOf(p) === 'low').length
-  const out    = plants.filter(p => statusOf(p) === 'out').length
-  const totalStock = plants.reduce((s, p) => s + p.stock, 0)
-  const totalValue = plants.reduce((s, p) => s + p.stock * p.price, 0)
-  const alerts = plants.filter(p => statusOf(p) !== 'ok').slice(0, 6)
+  const stats = useMemo(() => {
+    const total      = plants.length
+    const ok         = plants.filter(p => statusOf(p) === 'ok').length
+    const low        = plants.filter(p => statusOf(p) === 'low').length
+    const out        = plants.filter(p => statusOf(p) === 'out').length
+    const totalStock = plants.reduce((s, p) => s + p.stock, 0)
+    const totalValue = plants.reduce((s, p) => s + p.stock * p.price, 0)
+    const alerts     = plants.filter(p => statusOf(p) !== 'ok').slice(0, 6)
+    return { total, ok, low, out, totalStock, totalValue, alerts }
+  }, [plants])
 
   if (loading) return <div className="page-center"><Spinner size={32} /></div>
 
@@ -50,28 +57,26 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="stats-grid">
-        <StatCard label="สินค้าทั้งหมด" value={total} unit="รายการ" icon={I.Box} color={140} />
-        <StatCard label="สต็อกรวม"      value={totalStock} unit="หน่วย"  icon={I.Package} color={170} />
-        <StatCard label="มูลค่าสต็อก"   value={fmtCurrency(totalValue)} unit={symbol} icon={I.Chart} color={220} />
-        <StatCard label="สต็อกปกติ"     value={ok} unit="รายการ"  icon={I.Check} color={140} />
-        <StatCard label="ใกล้หมด"       value={low} unit="รายการ" icon={I.Alert} color={60} alert={low > 0} />
-        <StatCard label="หมดสต็อก"      value={out} unit="รายการ" icon={I.Warning} color={25} alert={out > 0} />
+        <StatCard label="สินค้าทั้งหมด" value={stats.total} unit="รายการ" icon={I.Box} color={140} />
+        <StatCard label="สต็อกรวม"      value={stats.totalStock} unit="หน่วย"  icon={I.Package} color={170} />
+        <StatCard label="มูลค่าสต็อก"   value={fmtCurrency(stats.totalValue)} unit={symbol} icon={I.Chart} color={220} />
+        <StatCard label="สต็อกปกติ"     value={stats.ok} unit="รายการ"  icon={I.Check} color={140} />
+        <StatCard label="ใกล้หมด"       value={stats.low} unit="รายการ" icon={I.Alert} color={60} alert={stats.low > 0} />
+        <StatCard label="หมดสต็อก"      value={stats.out} unit="รายการ" icon={I.Warning} color={25} alert={stats.out > 0} />
       </div>
 
       <div className="dash-grid">
-        {/* Alerts */}
         <section className="card">
           <div className="card-header">
             <h2 className="card-title"><I.Alert size={14} /> สินค้าที่ต้องดำเนินการ</h2>
             <Link to="/low" className="btn btn-ghost" style={{ fontSize: 12, padding: '3px 8px' }}>ดูทั้งหมด</Link>
           </div>
-          {alerts.length === 0 ? (
+          {stats.alerts.length === 0 ? (
             <div className="card-empty"><I.Check size={20} style={{ color: 'var(--accent)' }} /><span>สต็อกทุกรายการปกติ</span></div>
           ) : (
             <div className="alert-list">
-              {alerts.map(p => (
+              {stats.alerts.map(p => (
                 <div key={p.id} className="alert-item">
                   <div>
                     <div className="alert-name">{p.name}</div>
@@ -87,7 +92,6 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* Recent movements */}
         <section className="card">
           <div className="card-header">
             <h2 className="card-title"><I.History size={14} /> เคลื่อนไหวล่าสุด</h2>

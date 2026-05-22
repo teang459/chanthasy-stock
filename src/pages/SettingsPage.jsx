@@ -5,6 +5,7 @@ import { useCurrency } from '../contexts/CurrencyContext'
 import Spinner from '../components/Spinner'
 import Field from '../components/Field'
 import * as I from '../components/Icons'
+import { userMessage, passwordIssue } from '../lib/errors'
 
 export default function SettingsPage() {
   const { user, profile, updateProfile, changePassword, logout } = useAuth()
@@ -29,19 +30,19 @@ export default function SettingsPage() {
       initials: profileForm.initials?.trim() || profileForm.name.slice(0, 2),
       shop_name: profileForm.shop_name?.trim() || null,
     })
-    if (error) toast.error(`บันทึกไม่สำเร็จ: ${error.message}`)
+    if (error) toast.error(`บันทึกไม่สำเร็จ: ${userMessage(error)}`)
     else toast.success('บันทึกโปรไฟล์สำเร็จ')
     setSaving(false)
   }
 
   async function handlePwSave(e) {
     e.preventDefault()
-    if (!pwForm.newPw)                     { toast.error('กรุณาระบุรหัสผ่านใหม่'); return }
-    if (pwForm.newPw.length < 6)           { toast.error('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); return }
-    if (pwForm.newPw !== pwForm.confirmPw) { toast.error('รหัสผ่านไม่ตรงกัน'); return }
+    const issue = passwordIssue(pwForm.newPw)
+    if (issue)                              { toast.error(issue); return }
+    if (pwForm.newPw !== pwForm.confirmPw)  { toast.error('รหัสผ่านไม่ตรงกัน'); return }
     setSaving(true)
     const { error } = await changePassword(pwForm.newPw)
-    if (error) toast.error(`เปลี่ยนรหัสผ่านไม่สำเร็จ: ${error.message}`)
+    if (error) toast.error(`เปลี่ยนรหัสผ่านไม่สำเร็จ: ${userMessage(error)}`)
     else { toast.success('เปลี่ยนรหัสผ่านสำเร็จ'); setPwForm({ newPw: '', confirmPw: '', showPw: false }) }
     setSaving(false)
   }
@@ -104,7 +105,7 @@ export default function SettingsPage() {
         <section className="card">
           <div className="card-header"><h2 className="card-title"><I.Lock size={14} /> เปลี่ยนรหัสผ่าน</h2></div>
           <form onSubmit={handlePwSave} className="form-stack settings-card-body">
-            <Field label="รหัสผ่านใหม่" hint="อย่างน้อย 6 ตัวอักษร">
+            <Field label="รหัสผ่านใหม่" hint="อย่างน้อย 8 ตัวอักษร + ตัวเลข">
               <div style={{ position: 'relative' }}>
                 <input type={pwForm.showPw ? 'text' : 'password'} value={pwForm.newPw}
                   onChange={e => setPwForm(f => ({ ...f, newPw: e.target.value }))}
