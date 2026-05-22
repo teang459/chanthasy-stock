@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
 import { statusOf, fmtCurrency } from '../lib/utils'
+import { useCurrency } from '../contexts/CurrencyContext'
 import StatusBadge from '../components/StatusBadge'
 import StockBar from '../components/StockBar'
 import EmptyState from '../components/EmptyState'
@@ -11,6 +12,7 @@ import * as I from '../components/Icons'
 
 export default function LowStockPage() {
   const { toast } = useToast()
+  const { symbol } = useCurrency()
   const [plants, setPlants] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -63,7 +65,7 @@ export default function LowStockPage() {
                         <td><div className="plant-name">{p.name}</div><div className="plant-sci mono">{p.sku}</div></td>
                         <td>{p.categories && <span className="badge" style={{ background:`oklch(95% 0.03 ${p.categories.hue})`, color:`oklch(35% 0.08 ${p.categories.hue})`, borderColor:'transparent' }}>{p.categories.name_th}</span>}</td>
                         <td><StockBar plant={p} /></td>
-                        <td className="mono">{fmtCurrency(p.price)} ฿</td>
+                        <td className="mono">{fmtCurrency(p.price)} {symbol}</td>
                         <td><StatusBadge status={statusOf(p)} /></td>
                       </tr>
                     ))}
@@ -85,7 +87,7 @@ export default function LowStockPage() {
                         <td><div className="plant-name">{p.name}</div><div className="plant-sci mono">{p.sku}</div></td>
                         <td>{p.categories && <span className="badge" style={{ background:`oklch(95% 0.03 ${p.categories.hue})`, color:`oklch(35% 0.08 ${p.categories.hue})`, borderColor:'transparent' }}>{p.categories.name_th}</span>}</td>
                         <td><StockBar plant={p} /></td>
-                        <td className="mono">{fmtCurrency(p.price)} ฿</td>
+                        <td className="mono">{fmtCurrency(p.price)} {symbol}</td>
                         <td><StatusBadge status={statusOf(p)} /></td>
                       </tr>
                     ))}

@@ -2,6 +2,7 @@ import React from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ToastProvider } from './contexts/ToastContext'
+import { CurrencyProvider } from './contexts/CurrencyContext'
 import Layout from './layout/Layout'
 import LoginPage      from './pages/LoginPage'
 import DashboardPage  from './pages/DashboardPage'
@@ -26,6 +27,7 @@ export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
+      <CurrencyProvider>
         <HashRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
@@ -43,6 +45,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </HashRouter>
+      </CurrencyProvider>
       </ToastProvider>
     </AuthProvider>
   )

@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { statusOf, fmtCurrency, fmtDateTime } from '../lib/utils'
+import { useCurrency } from '../contexts/CurrencyContext'
 import StatusBadge from '../components/StatusBadge'
 import Spinner from '../components/Spinner'
 import * as I from '../components/Icons'
 
 export default function DashboardPage() {
+  const { symbol } = useCurrency()
   const [plants, setPlants]    = useState([])
   const [moves, setMoves]      = useState([])
   const [loading, setLoading]  = useState(true)
@@ -52,7 +54,7 @@ export default function DashboardPage() {
       <div className="stats-grid">
         <StatCard label="สินค้าทั้งหมด" value={total} unit="รายการ" icon={I.Box} color={140} />
         <StatCard label="สต็อกรวม"      value={totalStock} unit="หน่วย"  icon={I.Package} color={170} />
-        <StatCard label="มูลค่าสต็อก"   value={fmtCurrency(totalValue)} unit="บาท" icon={I.Chart} color={220} />
+        <StatCard label="มูลค่าสต็อก"   value={fmtCurrency(totalValue)} unit={symbol} icon={I.Chart} color={220} />
         <StatCard label="สต็อกปกติ"     value={ok} unit="รายการ"  icon={I.Check} color={140} />
         <StatCard label="ใกล้หมด"       value={low} unit="รายการ" icon={I.Alert} color={60} alert={low > 0} />
         <StatCard label="หมดสต็อก"      value={out} unit="รายการ" icon={I.Warning} color={25} alert={out > 0} />

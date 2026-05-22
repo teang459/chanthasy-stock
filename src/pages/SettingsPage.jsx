@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
+import { useCurrency } from '../contexts/CurrencyContext'
 import Spinner from '../components/Spinner'
 import Field from '../components/Field'
 import * as I from '../components/Icons'
@@ -8,6 +9,7 @@ import * as I from '../components/Icons'
 export default function SettingsPage() {
   const { user, profile, updateProfile, changePassword, logout } = useAuth()
   const { toast } = useToast()
+  const { currency, setCurrency, symbol } = useCurrency()
 
   const [profileForm, setProfileForm] = useState({ name:'', initials:'', role:'' })
   const [pwForm, setPwForm]           = useState({ newPw:'', confirmPw:'', showPw: false })
@@ -65,7 +67,7 @@ export default function SettingsPage() {
         {/* Profile */}
         <section className="card">
           <div className="card-header"><h2 className="card-title"><I.User size={14} /> โปรไฟล์</h2></div>
-          <form onSubmit={handleProfileSave} className="form-stack">
+          <form onSubmit={handleProfileSave} className="form-stack settings-card-body">
             <div className="settings-email">
               <I.Lock size={12} />
               <span>{user?.email}</span>
@@ -94,7 +96,7 @@ export default function SettingsPage() {
         {/* Change Password */}
         <section className="card">
           <div className="card-header"><h2 className="card-title"><I.Lock size={14} /> เปลี่ยนรหัสผ่าน</h2></div>
-          <form onSubmit={handlePwSave} className="form-stack">
+          <form onSubmit={handlePwSave} className="form-stack settings-card-body">
             <Field label="รหัสผ่านใหม่" hint="อย่างน้อย 6 ตัวอักษร">
               <div style={{ position:'relative' }}>
                 <input type={pwForm.showPw ? 'text' : 'password'} value={pwForm.newPw}
@@ -119,39 +121,75 @@ export default function SettingsPage() {
           </form>
         </section>
 
+        {/* Currency */}
+        <section className="card">
+          <div className="card-header"><h2 className="card-title"><I.Chart size={14} /> สกุลเงิน</h2></div>
+          <div className="settings-card-body">
+            <p className="settings-hint">เลือกสกุลเงินที่ใช้แสดงราคาในระบบ</p>
+            <div className="currency-options">
+              <button
+                className={`currency-btn ${currency === 'THB' ? 'active' : ''}`}
+                onClick={() => { setCurrency('THB'); toast.success('เปลี่ยนเป็นสกุลเงินบาท (฿)') }}
+              >
+                <span className="currency-symbol">฿</span>
+                <div>
+                  <div className="currency-name">บาทไทย</div>
+                  <div className="currency-code">THB</div>
+                </div>
+              </button>
+              <button
+                className={`currency-btn ${currency === 'LAK' ? 'active' : ''}`}
+                onClick={() => { setCurrency('LAK'); toast.success('ປ່ຽນເປັນສະກຸນເງິນກີບ (₭)') }}
+              >
+                <span className="currency-symbol">₭</span>
+                <div>
+                  <div className="currency-name">ກີບລາວ</div>
+                  <div className="currency-code">LAK</div>
+                </div>
+              </button>
+            </div>
+            <p className="settings-hint" style={{ marginTop: 12 }}>
+              ปัจจุบัน: <strong>{currency === 'LAK' ? 'ກີບ (₭)' : 'บาท (฿)'}</strong>
+            </p>
+          </div>
+        </section>
+
         {/* Notifications */}
         <section className="card">
           <div className="card-header"><h2 className="card-title"><I.Bell size={14} /> การแจ้งเตือน</h2></div>
-          <div style={{ padding:'0 0 16px' }}>
+          <div className="settings-card-body">
             <div className="notif-status">
               สถานะ: {' '}
               <strong style={{ color: notifPerm === 'granted' ? 'var(--accent)' : notifPerm === 'denied' ? 'var(--danger)' : 'var(--muted)' }}>
                 {notifPerm === 'granted' ? 'เปิดใช้งานแล้ว' : notifPerm === 'denied' ? 'ถูกบล็อก' : notifPerm === 'unsupported' ? 'ไม่รองรับ' : 'ยังไม่ได้เปิดใช้งาน'}
               </strong>
             </div>
-            <p style={{ fontSize:13, color:'var(--muted)', margin:'8px 0 16px', lineHeight:1.6 }}>
+            <p className="settings-hint" style={{ marginTop: 8 }}>
               เปิดใช้งานการแจ้งเตือนเพื่อรับการแจ้งเตือนเมื่อสต็อกต่ำ หรือมีนัดหมายใน Desktop
             </p>
-            {notifPerm !== 'granted' && notifPerm !== 'unsupported' && (
-              <button className="btn btn-primary" onClick={requestNotifPermission}>
-                <I.Bell size={13} /> เปิดใช้งานการแจ้งเตือน
-              </button>
-            )}
-            {notifPerm === 'granted' && (
-              <button className="btn btn-ghost" onClick={() => new Notification('ทดสอบ', { body:'การแจ้งเตือนทำงานปกติ ✓' })}>
-                ทดสอบการแจ้งเตือน
-              </button>
-            )}
+            <div style={{ marginTop: 14 }}>
+              {notifPerm !== 'granted' && notifPerm !== 'unsupported' && (
+                <button className="btn btn-primary" onClick={requestNotifPermission}>
+                  <I.Bell size={13} /> เปิดใช้งานการแจ้งเตือน
+                </button>
+              )}
+              {notifPerm === 'granted' && (
+                <button className="btn btn-ghost" onClick={() => new Notification('ทดสอบ', { body:'การแจ้งเตือนทำงานปกติ ✓' })}>
+                  ทดสอบการแจ้งเตือน
+                </button>
+              )}
+            </div>
           </div>
         </section>
 
         {/* App info */}
-        <section className="card">
+        <section className="card" style={{ gridColumn: '1 / -1' }}>
           <div className="card-header"><h2 className="card-title"><I.Info size={14} /> เกี่ยวกับ</h2></div>
           <div className="about-list">
             <div className="about-row"><span>เวอร์ชัน</span><span>3.0.0</span></div>
             <div className="about-row"><span>Framework</span><span>React 18 + Vite</span></div>
             <div className="about-row"><span>Database</span><span>Supabase (PostgreSQL)</span></div>
+            <div className="about-row"><span>สกุลเงิน</span><span>{currency === 'LAK' ? 'ກີບ (₭) LAK' : 'บาท (฿) THB'}</span></div>
             <div className="about-row"><span>อีเมล</span><span>{user?.email}</span></div>
           </div>
         </section>

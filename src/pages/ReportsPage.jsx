@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
 import { statusOf, fmtCurrency, downloadCSV, fmtDate } from '../lib/utils'
+import { useCurrency } from '../contexts/CurrencyContext'
 import Spinner from '../components/Spinner'
 import * as I from '../components/Icons'
 
 export default function ReportsPage() {
   const { toast } = useToast()
+  const { symbol } = useCurrency()
   const [plants, setPlants]   = useState([])
   const [moves, setMoves]     = useState([])
   const [loading, setLoading] = useState(true)
@@ -82,8 +84,8 @@ export default function ReportsPage() {
       <div className="stats-grid">
         <ReportStat label="สินค้าทั้งหมด"  value={total}              unit="รายการ" color={140} />
         <ReportStat label="สต็อกรวม"       value={totalStock}         unit="หน่วย"  color={170} />
-        <ReportStat label="มูลค่าสต็อก"    value={fmtCurrency(totalValue)} unit="฿" color={220} />
-        <ReportStat label="ต้นทุนสต็อก"    value={fmtCurrency(totalCost)}  unit="฿" color={60}  />
+        <ReportStat label="มูลค่าสต็อก"    value={fmtCurrency(totalValue)} unit={symbol} color={220} />
+        <ReportStat label="ต้นทุนสต็อก"    value={fmtCurrency(totalCost)}  unit={symbol} color={60}  />
         <ReportStat label="สต็อกปกติ"      value={okCount}            unit="รายการ" color={140} />
         <ReportStat label="ต้องดำเนินการ" value={lowCount+outCount}  unit="รายการ" color={25}  alert={lowCount+outCount > 0} />
       </div>
@@ -98,7 +100,7 @@ export default function ReportsPage() {
               <div className="report-bar-track">
                 <div className="report-bar-fill" style={{ width:`${(c.value/maxVal)*100}%` }} />
               </div>
-              <div className="report-bar-val">{fmtCurrency(c.value)} ฿</div>
+              <div className="report-bar-val">{fmtCurrency(c.value)} {symbol}</div>
             </div>
           ))}
         </section>
@@ -115,7 +117,7 @@ export default function ReportsPage() {
                     <td className="mono muted">{i+1}</td>
                     <td>{p.name}</td>
                     <td className="mono">{p.stock}</td>
-                    <td className="mono">{fmtCurrency(p.stock * p.price)} ฿</td>
+                    <td className="mono">{fmtCurrency(p.stock * p.price)} {symbol}</td>
                   </tr>
                 ))}
               </tbody>

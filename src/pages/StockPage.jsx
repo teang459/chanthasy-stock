@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
 import { useAuth } from '../contexts/AuthContext'
 import { statusOf, fmtCurrency, generateSKU, downloadCSV, statusLabel } from '../lib/utils'
+import { useCurrency } from '../contexts/CurrencyContext'
 import Modal from '../components/Modal'
 import Confirm from '../components/Confirm'
 import Spinner from '../components/Spinner'
@@ -18,6 +19,7 @@ const EMPTY = { sku:'',name:'',name_sci:'',category_id:'',supplier_id:'',stock:0
 export default function StockPage() {
   const { toast } = useToast()
   const { user } = useAuth()
+  const { symbol } = useCurrency()
   const location = useLocation()
 
   const [plants, setPlants]       = useState([])
@@ -263,7 +265,7 @@ export default function StockPage() {
                     )}
                   </td>
                   <td><StockBar plant={p} /></td>
-                  <td className="mono">{fmtCurrency(p.price)} ฿</td>
+                  <td className="mono">{fmtCurrency(p.price)} {symbol}</td>
                   <td><StatusBadge status={statusOf(p)} /></td>
                   <td>
                     <div className="row-actions">
@@ -310,10 +312,10 @@ export default function StockPage() {
             <Field label="สต็อกขั้นต่ำ" required error={errors.min_stock}>
               <input type="number" min="0" value={form.min_stock} onChange={e => setF('min_stock', e.target.value)} />
             </Field>
-            <Field label="ราคาขาย (฿)" required error={errors.price}>
+            <Field label={`ราคาขาย (${symbol})`} required error={errors.price}>
               <input type="number" min="0" step="0.01" value={form.price} onChange={e => setF('price', e.target.value)} />
             </Field>
-            <Field label="ต้นทุน (฿)">
+            <Field label={`ต้นทุน (${symbol})`}>
               <input type="number" min="0" step="0.01" value={form.cost} onChange={e => setF('cost', e.target.value)} placeholder="ไม่บังคับ" />
             </Field>
             <Field label="หมายเหตุ" fullWidth>
