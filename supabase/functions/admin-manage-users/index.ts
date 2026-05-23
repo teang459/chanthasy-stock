@@ -97,9 +97,24 @@ Deno.serve(async (req: Request) => {
     if (!userId) return json({ error: 'userId required' }, 400)
     if (userId === caller.id) return json({ error: 'Cannot delete your own account' }, 400)
 
-    // ON DELETE CASCADE handles all related data automatically
+    // Best-effort cleanup of plant images so storage doesn't accumulate orphans
+    try {
+      const { data: files } = await serviceClient.storage.from('plant-images').list(userId, { limit: 1000 })
+      if (files && files.length > 0) {
+        const paths = files.map(f => `${userId}/${f.name}`)
+        await serviceClient.storage.from('plant-images').remove(paths)
+      }
+    } catch (e) {
+      console.error('storage cleanup (non-fatal):', (e as Error).message)
+    }
+
+    // ON DELETE CASCADE handles plants/movements/profile/etc.
+    // log_plant_event trigger skips logging when owner is being cascade-deleted (migration 003)
     const { error } = await serviceClient.auth.admin.deleteUser(userId)
-    if (error) return json({ error: error.message }, 400)
+    if (error) {
+      console.error('deleteUser error:', error.message)
+      return json({ error: error.message }, 400)
+    }
 
     return json({ success: true })
   }
