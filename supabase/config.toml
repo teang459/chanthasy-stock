@@ -1,0 +1,16 @@
+project_id = "kdsjqsfiunjhnajstwgi"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[auth]
+enabled = true
+site_url = "https://teang459.github.io/chanthasy-stock"
+additional_redirect_urls = []
+
+[analytics]
+enabled = false

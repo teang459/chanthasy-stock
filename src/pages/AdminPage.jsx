@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { userMessage } from '../lib/errors'
 import Spinner from '../components/Spinner'
+import Modal from '../components/Modal'
 
 const ROLES = [
   { value: 'admin', label: 'Admin' },
@@ -23,6 +24,19 @@ export default function AdminPage() {
   const [editName, setEditName] = useState('')
   const [editShop, setEditShop] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Create user modal
+  const [showCreate, setShowCreate] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newName, setNewName] = useState('')
+  const [newShop, setNewShop] = useState('')
+  const [newRole, setNewRole] = useState('staff')
+
+  // Delete confirmation
+  const [deleteTarget, setDeleteTarget] = useState(null) // { id, name, email }
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (profile?.role === 'admin') load()
@@ -66,6 +80,44 @@ export default function AdminPage() {
     navigate('/stock')
   }
 
+  function openCreate() {
+    setNewEmail(''); setNewPassword(''); setNewName(''); setNewShop(''); setNewRole('staff')
+    setShowCreate(true)
+  }
+
+  async function handleCreate(e) {
+    e.preventDefault()
+    if (!newEmail.trim() || !newPassword.trim()) return
+    setCreating(true)
+    const { data, error } = await supabase.functions.invoke('admin-manage-users', {
+      body: { action: 'create', email: newEmail.trim(), password: newPassword, name: newName.trim(), shop_name: newShop.trim(), role: newRole },
+    })
+    setCreating(false)
+    if (error || data?.error) {
+      toast.error(`สร้างไม่สำเร็จ: ${data?.error ?? userMessage(error)}`)
+    } else {
+      toast.success(`สร้างผู้ใช้ ${newEmail} สำเร็จ`)
+      setShowCreate(false)
+      load()
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    const { data, error } = await supabase.functions.invoke('admin-manage-users', {
+      body: { action: 'delete', userId: deleteTarget.id },
+    })
+    setDeleting(false)
+    if (error || data?.error) {
+      toast.error(`ลบไม่สำเร็จ: ${data?.error ?? userMessage(error)}`)
+    } else {
+      toast.success(`ลบผู้ใช้ ${deleteTarget.email || deleteTarget.name} สำเร็จ`)
+      setDeleteTarget(null)
+      load()
+    }
+  }
+
   if (!profile) return <div className="page-center"><Spinner size={32} /></div>
   if (profile.role !== 'admin') return <Navigate to="/" replace />
 
@@ -76,7 +128,10 @@ export default function AdminPage() {
           <h1 className="page-title">Admin Panel</h1>
           <p className="page-sub">{shops.length} บัญชีในระบบ</p>
         </div>
-        <button className="btn btn-ghost" onClick={load}>รีเฟรช</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-ghost" onClick={load}>รีเฟรช</button>
+          <button className="btn btn-primary" onClick={openCreate}>+ เพิ่มผู้ใช้</button>
+        </div>
       </div>
 
       {loading ? (
@@ -124,6 +179,15 @@ export default function AdminPage() {
                         </button>
                         <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => startEdit(s)}>
                           แก้ไข
+                        </button>
+                        <button
+                          className="btn btn-ghost"
+                          style={{ fontSize: 12, padding: '4px 10px', color: 'var(--danger, #dc2626)' }}
+                          onClick={() => setDeleteTarget({ id: s.id, name: s.name, email: s.email })}
+                          disabled={s.id === profile.id}
+                          title={s.id === profile.id ? 'ไม่สามารถลบบัญชีตัวเองได้' : ''}
+                        >
+                          ลบ
                         </button>
                       </div>
                     </td>
@@ -177,6 +241,86 @@ export default function AdminPage() {
           ))}
         </div>
       </div>
+
+      {/* ── Create User Modal ───────────────────────────────── */}
+      {showCreate && (
+        <Modal title="เพิ่มผู้ใช้ใหม่" onClose={() => setShowCreate(false)}>
+          <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>อีเมล *</label>
+              <input
+                type="email"
+                value={newEmail}
+                onChange={e => setNewEmail(e.target.value)}
+                placeholder="user@example.com"
+                required
+                autoFocus
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>รหัสผ่าน *</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                placeholder="อย่างน้อย 6 ตัวอักษร"
+                minLength={6}
+                required
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>ชื่อผู้ใช้</label>
+              <input
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                placeholder="ชื่อ (ไม่บังคับ)"
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>ชื่อร้าน</label>
+              <input
+                value={newShop}
+                onChange={e => setNewShop(e.target.value)}
+                placeholder="ชื่อร้าน (ไม่บังคับ)"
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>บทบาท</label>
+              <select value={newRole} onChange={e => setNewRole(e.target.value)}>
+                {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+              <button type="button" className="btn btn-ghost" onClick={() => setShowCreate(false)}>ยกเลิก</button>
+              <button type="submit" className="btn btn-primary" disabled={creating}>
+                {creating ? <Spinner size={13} color="#fff" /> : 'สร้างบัญชี'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ── Delete Confirm Modal ────────────────────────────── */}
+      {deleteTarget && (
+        <Modal title="ยืนยันการลบ" onClose={() => setDeleteTarget(null)} size="sm">
+          <p style={{ margin: '0 0 8px' }}>
+            ลบบัญชี <strong>{deleteTarget.name || deleteTarget.email}</strong> ออกจากระบบ?
+          </p>
+          <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 20px' }}>
+            ข้อมูลทั้งหมดของบัญชีนี้ (ต้นไม้, ประวัติ, ฯลฯ) จะถูกลบถาวร
+          </p>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button className="btn btn-ghost" onClick={() => setDeleteTarget(null)}>ยกเลิก</button>
+            <button
+              className="btn btn-danger"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? <Spinner size={13} color="#fff" /> : 'ลบถาวร'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
