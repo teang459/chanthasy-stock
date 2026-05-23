@@ -1,9 +1,31 @@
 -- ====================================================
--- Fix log_plant_event trigger to skip log during cascade
--- delete from auth.users (otherwise the INSERT into movements
--- violates FK because owner_id was already removed in the
--- same transaction).
+-- Fixes for admin create/delete user
+--
+-- 1. log_plant_event: skip movement log during cascade delete
+--    from auth.users (FK to deleted user would fail).
+-- 2. handle_new_user: remove insert into non-existent
+--    public.subscriptions table that was blocking user creation.
 -- ====================================================
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $handle$
+BEGIN
+  INSERT INTO public.profiles (id, name, role, initials)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+    'staff',
+    upper(left(split_part(NEW.email, '@', 1), 2))
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$handle$;
+
 
 CREATE OR REPLACE FUNCTION public.log_plant_event()
 RETURNS trigger
