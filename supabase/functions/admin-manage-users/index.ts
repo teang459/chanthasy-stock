@@ -32,16 +32,22 @@ Deno.serve(async (req: Request) => {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  const { data: { user: caller } } = await callerClient.auth.getUser()
-  if (!caller) return json({ error: 'Unauthorized' }, 401)
+  const { data: { user: caller }, error: userErr } = await callerClient.auth.getUser()
+  if (userErr || !caller) {
+    console.error('getUser failed:', userErr?.message)
+    return json({ error: 'Unauthorized' }, 401)
+  }
 
-  const { data: profile } = await callerClient
+  const { data: profile, error: profileErr } = await callerClient
     .from('profiles')
     .select('role, manager_id')
     .eq('id', caller.id)
     .single()
 
+  if (profileErr) console.error('profile fetch error:', profileErr.message)
+
   if (!profile || profile.role !== 'admin' || profile.manager_id !== null) {
+    console.error('Forbidden: profile=', JSON.stringify(profile))
     return json({ error: 'Forbidden' }, 403)
   }
 

@@ -85,16 +85,28 @@ export default function AdminPage() {
     setShowCreate(true)
   }
 
+  async function callFn(body) {
+    const { data, error } = await supabase.functions.invoke('admin-manage-users', { body })
+    if (error) {
+      let msg = null
+      try { const j = await error.context?.json(); msg = j?.error } catch {}
+      return { fnError: msg ?? error.message ?? 'เกิดข้อผิดพลาด' }
+    }
+    if (data?.error) return { fnError: data.error }
+    return { data }
+  }
+
   async function handleCreate(e) {
     e.preventDefault()
     if (!newEmail.trim() || !newPassword.trim()) return
     setCreating(true)
-    const { data, error } = await supabase.functions.invoke('admin-manage-users', {
-      body: { action: 'create', email: newEmail.trim(), password: newPassword, name: newName.trim(), shop_name: newShop.trim(), role: newRole },
+    const { data, fnError } = await callFn({
+      action: 'create', email: newEmail.trim(), password: newPassword,
+      name: newName.trim(), shop_name: newShop.trim(), role: newRole,
     })
     setCreating(false)
-    if (error || data?.error) {
-      toast.error(`สร้างไม่สำเร็จ: ${data?.error ?? userMessage(error)}`)
+    if (fnError) {
+      toast.error(`สร้างไม่สำเร็จ: ${fnError}`)
     } else {
       toast.success(`สร้างผู้ใช้ ${newEmail} สำเร็จ`)
       setShowCreate(false)
@@ -105,12 +117,10 @@ export default function AdminPage() {
   async function handleDelete() {
     if (!deleteTarget) return
     setDeleting(true)
-    const { data, error } = await supabase.functions.invoke('admin-manage-users', {
-      body: { action: 'delete', userId: deleteTarget.id },
-    })
+    const { fnError } = await callFn({ action: 'delete', userId: deleteTarget.id })
     setDeleting(false)
-    if (error || data?.error) {
-      toast.error(`ลบไม่สำเร็จ: ${data?.error ?? userMessage(error)}`)
+    if (fnError) {
+      toast.error(`ลบไม่สำเร็จ: ${fnError}`)
     } else {
       toast.success(`ลบผู้ใช้ ${deleteTarget.email || deleteTarget.name} สำเร็จ`)
       setDeleteTarget(null)
