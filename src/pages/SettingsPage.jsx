@@ -10,45 +10,66 @@ import * as I from '../components/Icons'
 import { userMessage, passwordIssue } from '../lib/errors'
 
 export default function SettingsPage() {
-  const { user, profile, updateProfile, changePassword, logout } = useAuth()
+  const { user, profile, stores, currentStoreId, updateProfile, refreshProfile,
+          changePassword, logout, isSuperAdmin } = useAuth()
   const { toast } = useToast()
   const { currency, setCurrency } = useCurrency()
+  const currentStore = stores.find(s => s.id === currentStoreId)
+  const canEditStore = isSuperAdmin || currentStore?.role === 'store_admin'
 
-  const [profileForm, setProfileForm] = useState({ name: '', initials: '', shop_name: '' })
+  const [profileForm, setProfileForm] = useState({ name: '', initials: '' })
+  const [storeForm, setStoreForm]     = useState({ name: '', address: '', phone: '', tax_id: '', vat_rate: '0', vat_inclusive: true, currency: 'THB' })
   const [pwForm, setPwForm]           = useState({ newPw: '', confirmPw: '', showPw: false })
   const [notifPerm, setNotifPerm]     = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported')
   const [saving, setSaving]           = useState(false)
+  const [savingStore, setSavingStore] = useState(false)
   const [exporting, setExporting]     = useState(false)
-  const [taxForm, setTaxForm] = useState({ tax_id: '', vat_rate: '0', vat_inclusive: true })
-  const [savingTax, setSavingTax] = useState(false)
 
   useEffect(() => {
     if (profile) {
-      setProfileForm({ name: profile.name ?? '', initials: profile.initials ?? '', shop_name: profile.shop_name ?? '' })
-      setTaxForm({
-        tax_id: profile.tax_id ?? '',
-        vat_rate: String(profile.vat_rate ?? 0),
-        vat_inclusive: profile.vat_inclusive ?? true,
-      })
+      setProfileForm({ name: profile.name ?? '', initials: profile.initials ?? '' })
     }
   }, [profile])
 
-  async function handleTaxSave(e) {
+  useEffect(() => {
+    if (currentStore) {
+      setStoreForm({
+        name: currentStore.name ?? '',
+        address: currentStore.address ?? '',
+        phone: currentStore.phone ?? '',
+        tax_id: currentStore.tax_id ?? '',
+        vat_rate: String(currentStore.vat_rate ?? 0),
+        vat_inclusive: currentStore.vat_inclusive ?? true,
+        currency: currentStore.currency ?? 'THB',
+      })
+    }
+  }, [currentStore?.id, currentStore?.name, currentStore?.address, currentStore?.phone, currentStore?.tax_id, currentStore?.vat_rate, currentStore?.vat_inclusive, currentStore?.currency])
+
+  async function handleStoreSave(e) {
     e.preventDefault()
-    const rate = Number(taxForm.vat_rate)
+    if (!currentStore) return
+    if (!storeForm.name?.trim()) { toast.error('กรุณาระบุชื่อสาขา'); return }
+    const rate = Number(storeForm.vat_rate)
     if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
       toast.error('อัตรา VAT ต้องอยู่ระหว่าง 0 - 100')
       return
     }
-    setSavingTax(true)
-    const { error } = await updateProfile({
-      tax_id: taxForm.tax_id?.trim() || null,
+    setSavingStore(true)
+    const { error } = await supabase.from('stores').update({
+      name: storeForm.name.trim(),
+      address: storeForm.address?.trim() || null,
+      phone: storeForm.phone?.trim() || null,
+      tax_id: storeForm.tax_id?.trim() || null,
       vat_rate: rate,
-      vat_inclusive: !!taxForm.vat_inclusive,
-    })
-    setSavingTax(false)
+      vat_inclusive: !!storeForm.vat_inclusive,
+      currency: storeForm.currency,
+    }).eq('id', currentStore.id)
+    setSavingStore(false)
     if (error) toast.error(`บันทึกไม่สำเร็จ: ${userMessage(error)}`)
-    else toast.success('บันทึกการตั้งค่าภาษีสำเร็จ')
+    else {
+      toast.success('บันทึกข้อมูลสาขาสำเร็จ')
+      await refreshProfile?.()
+    }
   }
 
   async function handleProfileSave(e) {
@@ -58,7 +79,6 @@ export default function SettingsPage() {
     const { error } = await updateProfile({
       name: profileForm.name.trim(),
       initials: profileForm.initials?.trim() || profileForm.name.slice(0, 2),
-      shop_name: profileForm.shop_name?.trim() || null,
     })
     if (error) toast.error(`บันทึกไม่สำเร็จ: ${userMessage(error)}`)
     else toast.success('บันทึกโปรไฟล์สำเร็จ')
@@ -133,26 +153,29 @@ export default function SettingsPage() {
       </div>
 
       <div className="settings-grid">
-        {/* Profile */}
+        {/* Personal profile */}
         <section className="card">
-          <div className="card-header"><h2 className="card-title"><I.User size={14} /> โปรไฟล์</h2></div>
+          <div className="card-header"><h2 className="card-title"><I.User size={14} /> โปรไฟล์ส่วนตัว</h2></div>
           <form onSubmit={handleProfileSave} className="form-stack settings-card-body">
             <div className="settings-email">
               <I.Lock size={12} />
               <span>{user?.email}</span>
             </div>
-            <Field label="ชื่อร้าน" hint="แสดงในแถบด้านข้างและส่วนหัว">
-              <input value={profileForm.shop_name} onChange={e => setProfileForm(f => ({ ...f, shop_name: e.target.value }))} placeholder="ร้านต้นไม้สวยงาม" />
-            </Field>
             <Field label="ชื่อผู้ใช้" required>
               <input value={profileForm.name} onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))} placeholder="คุณสมใจ" />
             </Field>
             <Field label="ชื่อย่อ (แสดงใน Avatar)" hint="1-3 ตัวอักษร">
               <input value={profileForm.initials} onChange={e => setProfileForm(f => ({ ...f, initials: e.target.value }))} placeholder="สม" maxLength={3} />
             </Field>
-            <Field label="ตำแหน่ง" hint="เปลี่ยนได้โดย Admin เท่านั้น">
+            <Field label="ตำแหน่งในสาขา" hint="ตั้งโดย Store Admin ผ่าน Admin Panel">
               <input
-                value={profile?.role === 'admin' ? 'Admin' : profile?.role === 'viewer' ? 'Viewer' : 'Staff'}
+                value={
+                  isSuperAdmin ? 'Super Admin'
+                  : currentStore?.role === 'store_admin' ? 'Store Admin'
+                  : currentStore?.role === 'viewer'     ? 'Viewer'
+                  : currentStore                         ? 'Staff'
+                  : '—'
+                }
                 readOnly
                 style={{ background: 'var(--bg)', cursor: 'default', color: 'var(--muted)' }}
               />
@@ -164,6 +187,57 @@ export default function SettingsPage() {
             </div>
           </form>
         </section>
+
+        {/* Store info — for store admins of the current store */}
+        {currentStore && (
+          <section className="card">
+            <div className="card-header">
+              <h2 className="card-title"><I.Box size={14} /> ข้อมูลสาขา ({currentStore.code})</h2>
+            </div>
+            <form onSubmit={handleStoreSave} className="form-stack settings-card-body">
+              {!canEditStore && (
+                <div className="settings-hint" style={{ marginTop: 0 }}>
+                  <I.Lock size={12} /> เฉพาะ Store Admin หรือ Super Admin เท่านั้นที่แก้ไขข้อมูลสาขาได้
+                </div>
+              )}
+              <Field label="ชื่อสาขา" required>
+                <input value={storeForm.name} onChange={e => setStoreForm(f => ({ ...f, name: e.target.value }))} disabled={!canEditStore} />
+              </Field>
+              <Field label="ที่อยู่">
+                <input value={storeForm.address} onChange={e => setStoreForm(f => ({ ...f, address: e.target.value }))} disabled={!canEditStore} />
+              </Field>
+              <Field label="เบอร์โทร">
+                <input value={storeForm.phone} onChange={e => setStoreForm(f => ({ ...f, phone: e.target.value }))} disabled={!canEditStore} />
+              </Field>
+              <Field label="เลขผู้เสียภาษี" hint="ปล่อยว่างถ้าไม่จด VAT">
+                <input value={storeForm.tax_id} onChange={e => setStoreForm(f => ({ ...f, tax_id: e.target.value }))} disabled={!canEditStore} placeholder="0-0000-00000-00-0" />
+              </Field>
+              <Field label="อัตรา VAT (%)" hint="ตั้ง 0 หากไม่คิดภาษี (ไทย = 7)">
+                <input type="number" step="0.01" min="0" max="100" value={storeForm.vat_rate}
+                       onChange={e => setStoreForm(f => ({ ...f, vat_rate: e.target.value }))} disabled={!canEditStore} />
+              </Field>
+              <Field label="โหมด VAT">
+                <select value={storeForm.vat_inclusive ? '1' : '0'} disabled={!canEditStore}
+                        onChange={e => setStoreForm(f => ({ ...f, vat_inclusive: e.target.value === '1' }))}>
+                  <option value="1">รวมในราคา (รีเทล)</option>
+                  <option value="0">แยกต่างหาก (B2B)</option>
+                </select>
+              </Field>
+              <Field label="สกุลเงินของสาขา">
+                <select value={storeForm.currency} disabled={!canEditStore}
+                        onChange={e => setStoreForm(f => ({ ...f, currency: e.target.value }))}>
+                  <option value="THB">บาท (THB)</option>
+                  <option value="LAK">กีบ (LAK)</option>
+                </select>
+              </Field>
+              <div className="form-actions">
+                <button type="submit" className="btn btn-primary" disabled={savingStore || !canEditStore}>
+                  {savingStore ? <Spinner size={14} color="#fff" /> : 'บันทึกข้อมูลสาขา'}
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
 
         {/* Change Password */}
         <section className="card">
@@ -214,60 +288,6 @@ export default function SettingsPage() {
               ปัจจุบัน: <strong>{currency === 'LAK' ? 'ກີບ (₭)' : 'บาท (฿)'}</strong>
             </p>
           </div>
-        </section>
-
-        {/* Tax / VAT */}
-        <section className="card">
-          <div className="card-header"><h2 className="card-title"><I.Wallet size={14} /> ภาษีและ VAT</h2></div>
-          <form onSubmit={handleTaxSave} className="form-stack settings-card-body">
-            <p className="settings-hint" style={{ marginTop: 0 }}>
-              ตั้งค่าเลขผู้เสียภาษีและอัตรา VAT — ใช้กับใบกำกับภาษี/ใบเสร็จที่ออกจากระบบ
-            </p>
-            <Field label="เลขผู้เสียภาษี" hint="ปล่อยว่างถ้าไม่จด VAT (ใบเสร็จจะไม่แสดง)">
-              <input
-                value={taxForm.tax_id}
-                onChange={e => setTaxForm(f => ({ ...f, tax_id: e.target.value }))}
-                placeholder="0-0000-00000-00-0"
-                maxLength={20}
-                inputMode="numeric"
-              />
-            </Field>
-            <Field label="อัตรา VAT (%)" hint="ตั้ง 0 หากไม่คิดภาษี (ค่าเริ่มต้นในไทยคือ 7)">
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                value={taxForm.vat_rate}
-                onChange={e => setTaxForm(f => ({ ...f, vat_rate: e.target.value }))}
-              />
-            </Field>
-            <Field label="ราคารวม VAT หรือไม่" hint="รีเทล: ราคาในระบบรวม VAT แล้ว · B2B: VAT บวกเพิ่ม">
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  type="button"
-                  className={`btn ${taxForm.vat_inclusive ? 'btn-primary' : 'btn-ghost'}`}
-                  onClick={() => setTaxForm(f => ({ ...f, vat_inclusive: true }))}
-                  style={{ flex: 1, justifyContent: 'center' }}
-                >
-                  รวม VAT (รีเทล)
-                </button>
-                <button
-                  type="button"
-                  className={`btn ${!taxForm.vat_inclusive ? 'btn-primary' : 'btn-ghost'}`}
-                  onClick={() => setTaxForm(f => ({ ...f, vat_inclusive: false }))}
-                  style={{ flex: 1, justifyContent: 'center' }}
-                >
-                  แยกต่างหาก (B2B)
-                </button>
-              </div>
-            </Field>
-            <div className="form-actions">
-              <button type="submit" className="btn btn-primary" disabled={savingTax}>
-                {savingTax ? <Spinner size={14} color="#fff" /> : 'บันทึกการตั้งค่าภาษี'}
-              </button>
-            </div>
-          </form>
         </section>
 
         {/* Notifications */}

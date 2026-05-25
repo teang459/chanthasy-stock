@@ -134,7 +134,6 @@ export default function BulkImport({ onClose, onDone, categories = [], suppliers
       if (seen.has(sku.toLowerCase())) { dupes.push(sku); continue }
       seen.add(sku.toLowerCase())
       const row = {
-        owner_id: ownerId,
         store_id: ownerId,
         sku: r.data.sku,
         name: r.data.name,

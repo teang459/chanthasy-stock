@@ -276,7 +276,7 @@ export default function FinancePage() {
         if (error) throw error
         toast.success('แก้ไขรายการสำเร็จ')
       } else {
-        const { error } = await supabase.from('finance_entries').insert({ ...payload, owner_id: ownerId, store_id: ownerId })
+        const { error } = await supabase.from('finance_entries').insert({ ...payload, store_id: ownerId })
         if (error) throw error
         toast.success(form.type === 'income' ? 'บันทึกรายรับสำเร็จ' : 'บันทึกรายจ่ายสำเร็จ')
       }

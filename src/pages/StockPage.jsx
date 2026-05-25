@@ -177,7 +177,7 @@ export default function StockPage() {
         if (error) throw error
         toast.success('แก้ไขข้อมูลสำเร็จ')
       } else {
-        const { error } = await supabase.from('plants').insert({ ...payload, owner_id: ownerId, store_id: ownerId })
+        const { error } = await supabase.from('plants').insert({ ...payload, store_id: ownerId })
         if (error) throw error
         toast.success('เพิ่มต้นไม้สำเร็จ')
       }

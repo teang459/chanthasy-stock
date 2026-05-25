@@ -75,7 +75,7 @@ export default function CategoriesPage() {
         if (error) throw error
         toast.success('แก้ไขหมวดหมู่สำเร็จ')
       } else {
-        const { error } = await supabase.from('categories').insert({ ...payload, owner_id: ownerId, store_id: ownerId })
+        const { error } = await supabase.from('categories').insert({ ...payload, store_id: ownerId })
         if (error) throw error
         toast.success('เพิ่มหมวดหมู่สำเร็จ')
       }
