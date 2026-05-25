@@ -24,8 +24,9 @@ function buildInvoiceNo(createdAt, seq) {
 }
 
 export default function Invoice({ movement, onClose }) {
-  const { ownerId, profile } = useAuth()
+  const { ownerId, profile, stores, currentStoreId } = useAuth()
   const { symbol } = useCurrency()
+  const currentStore = stores.find(s => s.id === currentStoreId)
   const [seq, setSeq] = useState(null)
 
   useEffect(() => {
@@ -46,8 +47,8 @@ export default function Invoice({ movement, onClose }) {
   const qty       = Math.abs(movement.qty ?? 0)
   const unit      = Number(movement.plants?.price ?? 0)
   const lineTotal = qty * unit
-  const vat       = vatBreakdown(lineTotal, profile)
-  const showVat   = hasVat(profile)
+  const vat       = vatBreakdown(lineTotal, currentStore)
+  const showVat   = hasVat(currentStore)
   const issued    = new Date(movement.created_at)
   const number    = seq == null ? '…' : buildInvoiceNo(movement.created_at, seq)
   const docTitle  = showVat ? 'ใบกำกับภาษี / ใบเสร็จรับเงิน' : 'ใบเสร็จรับเงิน / RECEIPT'
@@ -70,11 +71,13 @@ export default function Invoice({ movement, onClose }) {
         <div className="invoice-sheet">
           <header className="invoice-head">
             <div>
-              <div className="invoice-shop">{profile?.shop_name?.trim() || profile?.name || 'My Shop'}</div>
-              <div className="invoice-sub">{profile?.name && profile?.shop_name ? profile.name : ''}</div>
-              {profile?.tax_id && (
+              <div className="invoice-shop">{currentStore?.name || profile?.name || 'My Shop'}</div>
+              {currentStore?.address && (
+                <div className="invoice-sub">{currentStore.address}</div>
+              )}
+              {currentStore?.tax_id && (
                 <div className="invoice-sub mono" style={{ marginTop: 4 }}>
-                  เลขผู้เสียภาษี: {profile.tax_id}
+                  เลขผู้เสียภาษี: {currentStore.tax_id}
                 </div>
               )}
             </div>

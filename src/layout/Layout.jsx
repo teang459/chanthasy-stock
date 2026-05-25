@@ -19,11 +19,12 @@ export default function Layout() {
   const [adminViewingName, setAdminViewingName] = useState('')
 
   useEffect(() => {
-    // Only show onboarding to team owners (no manager_id), not to staff members
-    if (profile && !profile.manager_id && !profile.shop_name && !localStorage.getItem('onboarding_done')) {
+    // Trigger onboarding for a brand-new user who has no store membership yet.
+    // Returning users (already members of at least one store) skip it.
+    if (profile && stores.length === 0 && !localStorage.getItem('onboarding_done')) {
       setShowOnboarding(true)
     }
-  }, [profile])
+  }, [profile, stores.length])
 
   useEffect(() => {
     fetchLow()
@@ -35,13 +36,10 @@ export default function Layout() {
   }, [ownerId])
 
   useEffect(() => {
-    if (adminViewingOwnerId) {
-      supabase.from('profiles').select('name,shop_name').eq('id', adminViewingOwnerId).single()
-        .then(({ data }) => setAdminViewingName(data?.shop_name || data?.name || adminViewingOwnerId.slice(0, 8)))
-    } else {
-      setAdminViewingName('')
-    }
-  }, [adminViewingOwnerId])
+    if (!adminViewingOwnerId) { setAdminViewingName(''); return }
+    const match = stores.find(s => s.id === adminViewingOwnerId)
+    setAdminViewingName(match?.name || adminViewingOwnerId.slice(0, 8))
+  }, [adminViewingOwnerId, stores])
 
   async function fetchLow() {
     if (!ownerId) { setLowPlants([]); return }

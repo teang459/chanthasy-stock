@@ -15,6 +15,7 @@ export function vatBreakdown(lineTotal, { vat_rate = 0, vat_inclusive = true } =
   return { base: lineTotal, vat, total: lineTotal + vat, rate, inclusive: false }
 }
 
-export function hasVat(profile) {
-  return Boolean(profile) && Number(profile.vat_rate) > 0
+// Accepts any object with vat_rate (store row or legacy profile).
+export function hasVat(src) {
+  return Boolean(src) && Number(src.vat_rate) > 0
 }

@@ -1,29 +1,32 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
 
 const CurrencyCtx = createContext({ currency: 'THB', symbol: '฿', setCurrency: () => {} })
 
+// Currency now lives on the store. Each store has its own currency (THB/LAK);
+// the active currency follows whichever store the user is currently viewing.
+// localStorage keeps a fallback for first paint before stores load.
 export function CurrencyProvider({ children }) {
-  const { user, profile } = useAuth()
+  const { stores, currentStoreId } = useAuth()
   const [currency, setCurrencyState] = useState(
     () => localStorage.getItem('cs_currency') || 'THB'
   )
 
-  // Sync from profile when it loads
-  useEffect(() => {
-    if (profile?.currency && profile.currency !== currency) {
-      setCurrencyState(profile.currency)
-      localStorage.setItem('cs_currency', profile.currency)
-    }
-  }, [profile?.currency])
+  const currentStore = stores.find(s => s.id === currentStoreId)
 
-  async function setCurrency(c) {
+  useEffect(() => {
+    const next = currentStore?.currency
+    if (next && next !== currency) {
+      setCurrencyState(next)
+      localStorage.setItem('cs_currency', next)
+    }
+  }, [currentStore?.currency, currency])
+
+  // Manual override (e.g. user prefers Lao display on a Thai store).
+  // Persists locally only; store currency is the source of truth.
+  function setCurrency(c) {
     setCurrencyState(c)
     localStorage.setItem('cs_currency', c)
-    if (user) {
-      await supabase.from('profiles').update({ currency: c }).eq('id', user.id)
-    }
   }
 
   const symbol = currency === 'LAK' ? '₭' : '฿'

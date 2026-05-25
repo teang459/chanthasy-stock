@@ -9,11 +9,12 @@
 --   - Phase A (006) — stores, store_members, helpers
 --   - Phase B (007) — data backfill (DML; only relevant for upgrades, not fresh deploys)
 --   - Phase C (008) — RLS cutover + NOT NULL + role enum migration
---   - Phase E (009) — daily settlement                              ← applied here
---
--- The legacy owner_id columns are still present on data tables as
--- dead weight; the frontend dual-writes them until a follow-up
--- cleanup migration drops them.
+--   - Phase E (009) — daily settlement
+--   - 010 — adjust_stock RPC accepts p_payment for cash/transfer/credit/other
+--   - 011 — stores_admin_update policy (store_admin edits own store)
+--   - 012 — legacy owner_id / manager_id / shop_name / VAT / currency
+--           columns dropped; profiles is now just (id, name, role,
+--           initials, updated_at)                                   ← applied here
 -- ================================================================
 
 -- ====================================================
@@ -21,17 +22,11 @@
 -- ====================================================
 
 CREATE TABLE IF NOT EXISTS profiles (
-  id            UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
-  name          TEXT NOT NULL DEFAULT '',
-  role          TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('super_admin','member')),
-  initials      TEXT NOT NULL DEFAULT '',
-  shop_name     TEXT,
-  manager_id    UUID REFERENCES profiles(id) ON DELETE SET NULL,   -- legacy, kept for one more release
-  currency      TEXT NOT NULL DEFAULT 'THB' CHECK (currency IN ('THB','LAK')),
-  tax_id        TEXT,
-  vat_rate      NUMERIC(5,2) NOT NULL DEFAULT 0 CHECK (vat_rate BETWEEN 0 AND 100),
-  vat_inclusive BOOLEAN NOT NULL DEFAULT true,
-  updated_at    TIMESTAMPTZ DEFAULT NOW()
+  id         UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  name       TEXT NOT NULL DEFAULT '',
+  role       TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('super_admin','member')),
+  initials   TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS stores (
@@ -72,8 +67,7 @@ CREATE INDEX IF NOT EXISTS store_members_store_idx ON store_members(store_id);
 CREATE TABLE IF NOT EXISTS categories (
   id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   store_id   UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
-  owner_id   UUID REFERENCES auth.users(id) ON DELETE CASCADE,  -- legacy
-  code       TEXT NOT NULL,
+code       TEXT NOT NULL,
   name_th    TEXT NOT NULL,
   hue        INTEGER NOT NULL DEFAULT 140,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -84,8 +78,7 @@ CREATE INDEX IF NOT EXISTS categories_store_idx ON categories(store_id);
 CREATE TABLE IF NOT EXISTS suppliers (
   id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   store_id   UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
-  owner_id   UUID REFERENCES auth.users(id) ON DELETE CASCADE,  -- legacy
-  code       TEXT NOT NULL,
+code       TEXT NOT NULL,
   name       TEXT NOT NULL,
   contact    TEXT,
   phone      TEXT,
@@ -99,7 +92,6 @@ CREATE INDEX IF NOT EXISTS suppliers_store_idx ON suppliers(store_id);
 CREATE TABLE IF NOT EXISTS plants (
   id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   store_id    UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
-  owner_id    UUID REFERENCES auth.users(id) ON DELETE CASCADE,  -- legacy
   sku         TEXT NOT NULL,
   name        TEXT NOT NULL,
   name_sci    TEXT,
@@ -120,7 +112,6 @@ CREATE INDEX IF NOT EXISTS plants_store_idx ON plants(store_id);
 CREATE TABLE IF NOT EXISTS movements (
   id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   store_id       UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
-  owner_id       UUID REFERENCES auth.users(id) ON DELETE CASCADE,  -- legacy
   plant_id       UUID REFERENCES plants(id) ON DELETE CASCADE,
   type           TEXT NOT NULL CHECK (type IN ('in','out','adjust','new','delete','rename')),
   qty            INTEGER NOT NULL,
@@ -134,8 +125,7 @@ CREATE INDEX IF NOT EXISTS movements_store_idx ON movements(store_id);
 CREATE TABLE IF NOT EXISTS calendar_events (
   id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   store_id   UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
-  owner_id   UUID REFERENCES auth.users(id) ON DELETE CASCADE,  -- legacy
-  title      TEXT NOT NULL,
+title      TEXT NOT NULL,
   date       DATE NOT NULL,
   time       TEXT,
   type       TEXT NOT NULL DEFAULT 'general' CHECK (type IN ('general','delivery','order','reminder','maintenance')),
@@ -148,7 +138,6 @@ CREATE INDEX IF NOT EXISTS calendar_events_store_idx ON calendar_events(store_id
 CREATE TABLE IF NOT EXISTS finance_entries (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   store_id   UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
-  owner_id   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,  -- legacy (still NOT NULL)
   type       TEXT NOT NULL CHECK (type IN ('income','expense')),
   category   TEXT NOT NULL DEFAULT 'other',
   title      TEXT NOT NULL,
@@ -159,7 +148,6 @@ CREATE TABLE IF NOT EXISTS finance_entries (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS finance_entries_store_idx ON finance_entries(store_id);
-CREATE INDEX IF NOT EXISTS finance_entries_owner_date_idx ON finance_entries(owner_id, date DESC);
 
 -- ====================================================
 -- Helper functions (SECURITY DEFINER bypasses RLS internally)
@@ -515,14 +503,12 @@ GRANT EXECUTE ON FUNCTION public.adjust_stock(UUID, TEXT, INTEGER, TEXT) TO auth
 DROP FUNCTION IF EXISTS public.get_all_shops_for_admin();
 CREATE OR REPLACE FUNCTION public.get_all_shops_for_admin()
 RETURNS TABLE(
-  id UUID,
-  name TEXT,
-  shop_name TEXT,
-  role TEXT,
+  id          UUID,
+  name        TEXT,
+  role        TEXT,
   plant_count BIGINT,
-  updated_at TIMESTAMPTZ,
-  email TEXT,
-  manager_id UUID
+  updated_at  TIMESTAMPTZ,
+  email       TEXT
 ) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $shops$
 BEGIN
   IF NOT is_super_admin() THEN
@@ -530,11 +516,10 @@ BEGIN
   END IF;
   RETURN QUERY
     SELECT
-      p.id, p.name, p.shop_name, p.role,
+      p.id, p.name, p.role,
       COALESCE((SELECT COUNT(*) FROM plants WHERE store_id = p.id), 0) AS plant_count,
       p.updated_at,
-      u.email::TEXT,
-      p.manager_id
+      u.email::TEXT
     FROM profiles p
     LEFT JOIN auth.users u ON u.id = p.id
     ORDER BY p.updated_at DESC NULLS LAST;

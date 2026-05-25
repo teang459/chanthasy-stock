@@ -40,7 +40,7 @@ export default function Sidebar({ open, lowCount, onClose }) {
         <div className="brand-mark">CS</div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div className="brand-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {currentStore?.name || profile?.shop_name?.trim() || 'My Shop'}
+            {currentStore?.name || 'My Shop'}
           </div>
           <div className="brand-sub">Chanthasy Stock</div>
         </div>

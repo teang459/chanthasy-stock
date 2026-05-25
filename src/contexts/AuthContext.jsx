@@ -48,12 +48,7 @@ export function AuthProvider({ children }) {
   // and call setAdminViewingOwnerId to scope to a tenant. We map both
   // onto the new multi-store model so older code keeps working until
   // Phase D.2 migrates every call site.
-  const isSuperAdmin = useMemo(() => {
-    if (!profile) return false
-    if (profile.role === 'super_admin') return true
-    // Legacy global admin: role='admin' AND manager_id IS NULL
-    return profile.role === 'admin' && !profile.manager_id
-  }, [profile])
+  const isSuperAdmin = useMemo(() => profile?.role === 'super_admin', [profile])
 
   // Perms of the current store. Super admins always have all perms.
   const perms = useMemo(() => {
@@ -70,10 +65,7 @@ export function AuthProvider({ children }) {
 
   async function fetchStoresFor(profileRow) {
     if (!profileRow) { setStores([]); return [] }
-    const superLike = profileRow.role === 'super_admin'
-      || (profileRow.role === 'admin' && !profileRow.manager_id)
-
-    if (superLike) {
+    if (profileRow.role === 'super_admin') {
       const { data } = await supabase.from('stores').select('*').order('code')
       const list = (data ?? []).map(s => ({ ...s, role: 'super_admin', perms: ALL_PERMS }))
       setStores(list)

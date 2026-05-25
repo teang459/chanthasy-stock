@@ -21,18 +21,14 @@ const PAGE_NAMES = {
 export default function Topbar({ onMenuToggle, lowCount, notifications, onNotifToggle, showNotif }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { profile, stores, currentStoreId, adminViewingOwnerId, isAdmin } = useAuth()
+  const { stores, currentStoreId } = useAuth()
   const { toast } = useToast()
   const [q, setQ] = useState('')
   const inputRef = useRef()
   const here = PAGE_NAMES[location.pathname] ?? 'หน้า'
 
   const currentStore = stores.find(s => s.id === currentStoreId)
-  const shopName =
-    (isAdmin && adminViewingOwnerId && currentStore?.name) ||
-    currentStore?.name ||
-    profile?.shop_name?.trim() ||
-    'My Shop'
+  const shopName = currentStore?.name || 'My Shop'
 
   useEffect(() => {
     const handler = e => {
