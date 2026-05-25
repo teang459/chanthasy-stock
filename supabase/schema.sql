@@ -8,8 +8,8 @@
 -- Multi-store rollout status:
 --   - Phase A (006) — stores, store_members, helpers
 --   - Phase B (007) — data backfill (DML; only relevant for upgrades, not fresh deploys)
---   - Phase C (008) — RLS cutover + NOT NULL + role enum migration  ← applied here
---   - Phase E (009) — daily settlement                              (NOT YET APPLIED)
+--   - Phase C (008) — RLS cutover + NOT NULL + role enum migration
+--   - Phase E (009) — daily settlement                              ← applied here
 --
 -- The legacy owner_id columns are still present on data tables as
 -- dead weight; the frontend dual-writes them until a follow-up
@@ -541,6 +541,135 @@ BEGIN
 END;
 $shops$;
 GRANT EXECUTE ON FUNCTION public.get_all_shops_for_admin() TO authenticated;
+
+-- ====================================================
+-- Phase E: Daily Settlement (migration 009)
+-- ====================================================
+
+CREATE TABLE IF NOT EXISTS daily_settlements (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id       UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  business_date  DATE NOT NULL,
+  opened_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  opened_by      UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  opening_cash   NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (opening_cash >= 0),
+  closed_at      TIMESTAMPTZ,
+  closed_by      UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  closing_cash   NUMERIC(12,2),
+  total_sales    NUMERIC(12,2),
+  total_vat      NUMERIC(12,2),
+  total_cost     NUMERIC(12,2),
+  total_income   NUMERIC(12,2),
+  total_expense  NUMERIC(12,2),
+  net_sales      NUMERIC(12,2),
+  expected_cash  NUMERIC(12,2),
+  difference     NUMERIC(12,2),
+  note           TEXT,
+  status         TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed','reopened')),
+  UNIQUE(store_id, business_date)
+);
+CREATE INDEX IF NOT EXISTS daily_settlements_store_date_idx ON daily_settlements(store_id, business_date DESC);
+CREATE INDEX IF NOT EXISTS daily_settlements_status_idx     ON daily_settlements(store_id, status);
+
+ALTER TABLE movements       ADD COLUMN IF NOT EXISTS settlement_id UUID REFERENCES daily_settlements(id) ON DELETE SET NULL;
+ALTER TABLE finance_entries ADD COLUMN IF NOT EXISTS settlement_id UUID REFERENCES daily_settlements(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS movements_settlement_idx       ON movements(settlement_id);
+CREATE INDEX IF NOT EXISTS finance_entries_settlement_idx ON finance_entries(settlement_id);
+
+ALTER TABLE daily_settlements ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS settlement_select ON daily_settlements;
+DROP POLICY IF EXISTS settlement_insert ON daily_settlements;
+DROP POLICY IF EXISTS settlement_update ON daily_settlements;
+DROP POLICY IF EXISTS settlement_delete ON daily_settlements;
+CREATE POLICY settlement_select ON daily_settlements FOR SELECT
+  USING (is_super_admin() OR store_id = ANY(my_store_ids()));
+CREATE POLICY settlement_insert ON daily_settlements FOR INSERT
+  WITH CHECK (is_super_admin() OR has_perm(store_id, 'settle'));
+CREATE POLICY settlement_update ON daily_settlements FOR UPDATE
+  USING      (is_super_admin() OR has_perm(store_id, 'settle'))
+  WITH CHECK (is_super_admin() OR has_perm(store_id, 'settle'));
+CREATE POLICY settlement_delete ON daily_settlements FOR DELETE
+  USING (is_super_admin());
+
+-- Lock movements / finance once their settlement is closed. The earlier
+-- movements_update / finance_update policies are replaced here.
+DROP POLICY IF EXISTS movements_update ON movements;
+CREATE POLICY movements_update ON movements FOR UPDATE
+  USING (
+    is_super_admin()
+    OR (is_store_admin(store_id) AND (
+          settlement_id IS NULL
+          OR EXISTS (SELECT 1 FROM daily_settlements WHERE id = movements.settlement_id AND status <> 'closed')))
+  )
+  WITH CHECK (
+    is_super_admin()
+    OR (is_store_admin(store_id) AND (
+          settlement_id IS NULL
+          OR EXISTS (SELECT 1 FROM daily_settlements WHERE id = movements.settlement_id AND status <> 'closed')))
+  );
+
+DROP POLICY IF EXISTS movements_delete ON movements;
+CREATE POLICY movements_delete ON movements FOR DELETE
+  USING (
+    is_super_admin()
+    OR (is_store_admin(store_id) AND (
+          settlement_id IS NULL
+          OR EXISTS (SELECT 1 FROM daily_settlements WHERE id = movements.settlement_id AND status <> 'closed')))
+  );
+
+DROP POLICY IF EXISTS finance_update ON finance_entries;
+CREATE POLICY finance_update ON finance_entries FOR UPDATE
+  USING (
+    is_super_admin()
+    OR (has_perm(store_id, 'finance') AND (
+          settlement_id IS NULL
+          OR EXISTS (SELECT 1 FROM daily_settlements WHERE id = finance_entries.settlement_id AND status <> 'closed')))
+  )
+  WITH CHECK (
+    is_super_admin()
+    OR (has_perm(store_id, 'finance') AND (
+          settlement_id IS NULL
+          OR EXISTS (SELECT 1 FROM daily_settlements WHERE id = finance_entries.settlement_id AND status <> 'closed')))
+  );
+
+DROP POLICY IF EXISTS finance_delete ON finance_entries;
+CREATE POLICY finance_delete ON finance_entries FOR DELETE
+  USING (
+    is_super_admin()
+    OR (is_store_admin(store_id) AND (
+          settlement_id IS NULL
+          OR EXISTS (SELECT 1 FROM daily_settlements WHERE id = finance_entries.settlement_id AND status <> 'closed')))
+  );
+
+-- Settlement helpers
+CREATE OR REPLACE FUNCTION public.today_in_store(p_store UUID)
+RETURNS DATE LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $func$
+  SELECT (NOW() AT TIME ZONE COALESCE((SELECT timezone FROM stores WHERE id = p_store), 'Asia/Bangkok'))::date
+$func$;
+
+CREATE OR REPLACE FUNCTION public.attach_settlement()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $func$
+BEGIN
+  IF NEW.settlement_id IS NULL AND NEW.store_id IS NOT NULL THEN
+    SELECT id INTO NEW.settlement_id FROM daily_settlements
+     WHERE store_id = NEW.store_id AND business_date = today_in_store(NEW.store_id)
+       AND status IN ('open','reopened')
+     LIMIT 1;
+  END IF;
+  RETURN NEW;
+END $func$;
+
+DROP TRIGGER IF EXISTS movements_attach_settlement ON movements;
+CREATE TRIGGER movements_attach_settlement BEFORE INSERT ON movements
+  FOR EACH ROW EXECUTE FUNCTION public.attach_settlement();
+
+DROP TRIGGER IF EXISTS finance_attach_settlement ON finance_entries;
+CREATE TRIGGER finance_attach_settlement BEFORE INSERT ON finance_entries
+  FOR EACH ROW EXECUTE FUNCTION public.attach_settlement();
+
+-- Settlement RPCs (open_day, settle_day, reopen_settlement)
+-- See supabase/migrations/009_daily_settlement.sql for the full bodies.
 
 -- ====================================================
 -- Storage bucket: plant-images
