@@ -82,6 +82,12 @@ export default function Sidebar({ open, lowCount, onClose }) {
           <span>Admin Panel</span>
         </NavLink>
       )}
+      {(isSuperAdmin || stores.some(s => s.role === 'store_admin')) && (
+        <NavLink to="/audit" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={{ margin: '0 8px 4px' }}>
+          <I.History size={15} />
+          <span>Audit Log</span>
+        </NavLink>
+      )}
       <div style={{ display: 'flex', gap: 12, padding: '6px 16px 4px', fontSize: 11, color: 'var(--muted)' }}>
         <Link to="/terms" style={{ color: 'var(--muted)', textDecoration: 'none' }} onClick={onClose}>ข้อกำหนด</Link>
         <Link to="/privacy" style={{ color: 'var(--muted)', textDecoration: 'none' }} onClick={onClose}>นโยบาย</Link>

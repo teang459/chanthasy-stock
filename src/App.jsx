@@ -21,6 +21,7 @@ const CategoriesPage = lazy(() => import('./pages/CategoriesPage'))
 const SuppliersPage  = lazy(() => import('./pages/SuppliersPage'))
 const CustomersPage  = lazy(() => import('./pages/CustomersPage'))
 const PurchaseOrdersPage = lazy(() => import('./pages/PurchaseOrdersPage'))
+const AuditLogPage   = lazy(() => import('./pages/AuditLogPage'))
 const CalendarPage   = lazy(() => import('./pages/CalendarPage'))
 const ReportsPage    = lazy(() => import('./pages/ReportsPage'))
 const FinancePage    = lazy(() => import('./pages/FinancePage'))
@@ -76,6 +77,7 @@ export default function App() {
                 <Route path="suppliers"   element={<SuppliersPage />} />
                 <Route path="customers"   element={<CustomersPage />} />
                 <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
+                <Route path="audit"       element={<AuditLogPage />} />
                 <Route path="calendar"    element={<CalendarPage />} />
                 <Route path="reports"     element={<ReportsPage />} />
                 <Route path="finance"     element={<FinancePage />} />

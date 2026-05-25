@@ -90,6 +90,19 @@ Deno.serve(async (req: Request) => {
       }).eq('id', data.user.id)
     }
 
+    // Audit log (write directly with service role; the table is otherwise append-only)
+    if (data.user) {
+      const actorEmail = caller.email ?? null
+      await serviceClient.from('audit_logs').insert({
+        actor_id: caller.id,
+        actor_email: actorEmail,
+        action: 'user.create',
+        entity_type: 'user',
+        entity_id: data.user.id,
+        metadata: { email, name: name ?? null },
+      })
+    }
+
     return json({ user: data.user })
   }
 
@@ -112,6 +125,11 @@ Deno.serve(async (req: Request) => {
       console.error('storage cleanup (non-fatal):', (e as Error).message)
     }
 
+    // Look up the target's email + name BEFORE deleting so we can audit it
+    const { data: targetProfile } = await serviceClient
+      .from('profiles').select('name').eq('id', userId).maybeSingle()
+    const { data: targetUser } = await serviceClient.auth.admin.getUserById(userId)
+
     // ON DELETE CASCADE clears profile, store_members, and (for legacy owner_id
     // rows) plants/movements/etc. store rows are kept (created_by → SET NULL).
     const { error } = await serviceClient.auth.admin.deleteUser(userId)
@@ -119,6 +137,18 @@ Deno.serve(async (req: Request) => {
       console.error('deleteUser error:', error.message)
       return json({ error: error.message }, 400)
     }
+
+    await serviceClient.from('audit_logs').insert({
+      actor_id: caller.id,
+      actor_email: caller.email ?? null,
+      action: 'user.delete',
+      entity_type: 'user',
+      entity_id: userId,
+      metadata: {
+        target_email: targetUser?.user?.email ?? null,
+        target_name: targetProfile?.name ?? null,
+      },
+    })
 
     return json({ success: true })
   }

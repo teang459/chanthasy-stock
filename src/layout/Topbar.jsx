@@ -13,6 +13,7 @@ const PAGE_NAMES = {
   '/suppliers':  'ซัพพลายเออร์',
   '/customers':  'ลูกค้า',
   '/purchase-orders': 'ใบสั่งซื้อ',
+  '/audit':      'Audit Log',
   '/calendar':   'ปฏิทิน',
   '/reports':    'รายงาน',
   '/finance':    'การเงิน',

@@ -23,7 +23,10 @@
 --           adjust_stock call post-Phase C).
 --   - 015 — one-off data cleanup: removed the 4 phantom movements the
 --           dropped trigger had already produced; recomputed the
---           affected settlement snapshot with an audit note.       ← applied here
+--           affected settlement snapshot with an audit note.
+--   - 016 — audit_logs table + triggers on stores/store_members and
+--           profile.role + log inside reopen_settlement. Edge Function
+--           writes user.create / user.delete rows.                  ← applied here
 -- ================================================================
 
 -- ====================================================
@@ -793,6 +796,41 @@ CREATE POLICY po_lines_delete ON purchase_order_lines FOR DELETE
 
 -- PO helper RPCs: next_po_number, receive_po_line.
 -- See supabase/migrations/014_purchase_orders.sql for full bodies.
+
+-- ====================================================
+-- Audit log (migration 016)
+-- ====================================================
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id    UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  actor_email TEXT,
+  store_id    UUID REFERENCES stores(id) ON DELETE SET NULL,
+  action      TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id   UUID,
+  metadata    JSONB,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS audit_logs_actor_idx   ON audit_logs(actor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_logs_store_idx   ON audit_logs(store_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_logs_entity_idx  ON audit_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS audit_logs_action_idx  ON audit_logs(action, created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_logs_created_idx ON audit_logs(created_at DESC);
+
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS audit_select ON audit_logs;
+CREATE POLICY audit_select ON audit_logs FOR SELECT
+  USING (
+    is_super_admin()
+    OR (store_id IS NOT NULL AND is_store_admin(store_id))
+  );
+-- No INSERT/UPDATE/DELETE policies; writes go through SECURITY DEFINER
+-- triggers + the log_audit helper. See migration 016 for full bodies of:
+--   log_audit(action, entity_type, entity_id, store_id, metadata)
+--   audit_stores_trigger, audit_store_members_trigger, audit_profile_role_trigger
+-- Triggers stores_audit, store_members_audit, profiles_role_audit attach
+-- to their tables and call log_audit on every change.
 
 -- ====================================================
 -- Storage bucket: plant-images
