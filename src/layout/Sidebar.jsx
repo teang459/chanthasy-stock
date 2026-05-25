@@ -11,6 +11,7 @@ const NAV = [
   { to: '/categories', label: 'หมวดหมู่',          Icon: I.Tag },
   { to: '/suppliers',  label: 'ซัพพลายเออร์',      Icon: I.Truck },
   { to: '/customers',  label: 'ลูกค้า',            Icon: I.User },
+  { to: '/purchase-orders', label: 'ใบสั่งซื้อ',    Icon: I.Truck, perm: 'perm_receive' },
 ]
 const SYSTEM = [
   { to: '/finance',    label: 'การเงิน',     Icon: I.Wallet },
@@ -49,17 +50,20 @@ export default function Sidebar({ open, lowCount, onClose }) {
 
       <nav className="nav" onClick={onClose}>
         <div className="nav-section-label">ทั่วไป</div>
-        {NAV.map(({ to, label, Icon, end, alert }) => (
-          <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Icon size={15} />
-            <span>{label}</span>
-            {alert && lowCount > 0 && (
-              <span className="nav-count" style={{ color: 'var(--amber-ink)', background: 'var(--amber-soft)' }}>
-                {lowCount}
-              </span>
-            )}
-          </NavLink>
-        ))}
+        {NAV.map(({ to, label, Icon, end, alert, perm }) => {
+          if (perm && !isSuperAdmin && !perms?.[perm]) return null
+          return (
+            <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <Icon size={15} />
+              <span>{label}</span>
+              {alert && lowCount > 0 && (
+                <span className="nav-count" style={{ color: 'var(--amber-ink)', background: 'var(--amber-soft)' }}>
+                  {lowCount}
+                </span>
+              )}
+            </NavLink>
+          )
+        })}
         <div className="nav-section-label">ระบบ</div>
         {SYSTEM.map(({ to, label, Icon, perm }) => {
           if (perm && !isSuperAdmin && !perms?.[perm]) return null

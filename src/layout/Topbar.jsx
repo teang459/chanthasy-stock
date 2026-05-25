@@ -12,6 +12,7 @@ const PAGE_NAMES = {
   '/categories': 'หมวดหมู่',
   '/suppliers':  'ซัพพลายเออร์',
   '/customers':  'ลูกค้า',
+  '/purchase-orders': 'ใบสั่งซื้อ',
   '/calendar':   'ปฏิทิน',
   '/reports':    'รายงาน',
   '/finance':    'การเงิน',
