@@ -2,13 +2,18 @@
 -- Chanthasy Stock — Supabase Schema (Production)
 --
 -- This file is the CONSOLIDATED source of truth for a fresh deploy.
--- It bundles migrations 001–006 so running it on an empty project
+-- It bundles migrations 001–007 so running it on an empty project
 -- produces the same state as the current production database.
 --
--- Migration 006 (Phase A) adds the multi-store scaffolding additively:
--- stores, store_members, store_id columns (nullable), and the new
--- helper functions. The legacy owner_id-based RLS still drives access
--- on the data tables until Phase C cutover (migration 008).
+-- Multi-store rollout status:
+--   - Phase A (006) — stores, store_members, helpers, store_id nullable
+--   - Phase B (007) — data backfill (DML; not re-applied here)
+--   - Phase C (008) — RLS cutover + NOT NULL  (NOT YET APPLIED)
+--   - Phase E (009) — daily settlement        (NOT YET APPLIED)
+--
+-- The legacy owner_id-based RLS still drives access on the data tables
+-- until Phase C runs. New deploys must additionally execute migration
+-- 007 to populate stores/store_members before exposing the new model.
 --
 -- For an existing project, prefer running the individual files in
 -- supabase/migrations/ in order.
