@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useCurrency } from '../contexts/CurrencyContext'
 import { fmtCurrency, fmtDate } from '../lib/utils'
 import { userMessage } from '../lib/errors'
+import { computePoTotal, remainingOnLine, validateReceive } from '../lib/po'
 import Modal from '../components/Modal'
 import Confirm from '../components/Confirm'
 import Spinner from '../components/Spinner'
@@ -81,8 +82,7 @@ export default function PurchaseOrdersPage() {
   }, [pos, statusFilter])
 
   function totalOf(poId) {
-    const lines = linesMap[poId] ?? []
-    return lines.reduce((sum, l) => sum + Number(l.qty_ordered) * Number(l.unit_cost), 0)
+    return computePoTotal(linesMap[poId] ?? [])
   }
 
   async function cancelPO(po) {
@@ -263,7 +263,7 @@ function POLinesPanel({ po, lines, symbol, canReceive, onReceive }) {
       </thead>
       <tbody>
         {lines.map(l => {
-          const remaining = l.qty_ordered - l.qty_received
+          const remaining = remainingOnLine(l)
           return (
             <tr key={l.id}>
               <td>
@@ -431,23 +431,22 @@ function CreatePOModal({ storeId, plants, suppliers, symbol, onClose, onDone }) 
 
 function ReceiveLineModal({ po, line, onClose, onDone }) {
   const { toast } = useToast()
-  const remaining = line.qty_ordered - line.qty_received
+  const remaining = remainingOnLine(line)
   const [qty, setQty] = useState(String(remaining))
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
-    const n = Number(qty)
-    if (!Number.isFinite(n) || n <= 0) { toast.error('จำนวนต้อง > 0'); return }
-    if (n > remaining) { toast.error(`รับเข้าได้สูงสุด ${remaining}`); return }
+    const check = validateReceive({ line, qty })
+    if (!check.ok) { toast.error(check.error); return }
     setBusy(true)
     const { error } = await supabase.rpc('receive_po_line', {
-      p_line_id: line.id, p_qty: n, p_note: note.trim() || null,
+      p_line_id: line.id, p_qty: check.willReceive, p_note: note.trim() || null,
     })
     setBusy(false)
     if (error) { toast.error(`รับเข้าไม่สำเร็จ: ${userMessage(error)}`); return }
-    toast.success(`รับเข้า ${n} หน่วยสำเร็จ`)
+    toast.success(`รับเข้า ${check.willReceive} หน่วยสำเร็จ`)
     onDone()
   }
 

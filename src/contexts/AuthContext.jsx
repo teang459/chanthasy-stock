@@ -1,27 +1,13 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import {
+  ALL_PERMS,
+  isSuperAdmin as resolveSuperAdmin,
+  resolvePerms,
+  pickInitialStore,
+} from '../lib/perms'
 
 const AuthContext = createContext(null)
-
-const ALL_PERMS = Object.freeze({
-  perm_sell: true,
-  perm_receive: true,
-  perm_adjust: true,
-  perm_manage_plants: true,
-  perm_view_reports: true,
-  perm_finance: true,
-  perm_settle: true,
-})
-
-const NO_PERMS = Object.freeze({
-  perm_sell: false,
-  perm_receive: false,
-  perm_adjust: false,
-  perm_manage_plants: false,
-  perm_view_reports: false,
-  perm_finance: false,
-  perm_settle: false,
-})
 
 const STORE_PICK_KEY = 'cs_current_store_id'
 
@@ -44,18 +30,12 @@ export function AuthProvider({ children }) {
     else    localStorage.removeItem(STORE_PICK_KEY)
   }
 
-  // Legacy: existing pages read `isAdmin` to know super-admin
-  // and call setAdminViewingOwnerId to scope to a tenant. We map both
-  // onto the new multi-store model so older code keeps working until
-  // Phase D.2 migrates every call site.
-  const isSuperAdmin = useMemo(() => profile?.role === 'super_admin', [profile])
+  const isSuperAdmin = useMemo(() => resolveSuperAdmin(profile), [profile])
 
-  // Perms of the current store. Super admins always have all perms.
-  const perms = useMemo(() => {
-    if (isSuperAdmin) return ALL_PERMS
-    const s = stores.find(s => s.id === currentStoreId)
-    return s?.perms ?? NO_PERMS
-  }, [isSuperAdmin, stores, currentStoreId])
+  const perms = useMemo(
+    () => resolvePerms({ isSuperAdmin, stores, currentStoreId }),
+    [isSuperAdmin, stores, currentStoreId],
+  )
 
   async function fetchProfile(userId) {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
@@ -65,7 +45,7 @@ export function AuthProvider({ children }) {
 
   async function fetchStoresFor(profileRow) {
     if (!profileRow) { setStores([]); return [] }
-    if (profileRow.role === 'super_admin') {
+    if (resolveSuperAdmin(profileRow)) {
       const { data } = await supabase.from('stores').select('*').order('code')
       const list = (data ?? []).map(s => ({ ...s, role: 'super_admin', perms: ALL_PERMS }))
       setStores(list)
@@ -95,11 +75,11 @@ export function AuthProvider({ children }) {
   }
 
   function resolveInitialStore(list, profileRow) {
-    const saved = localStorage.getItem(STORE_PICK_KEY)
-    if (saved && list.some(s => s.id === saved)) return saved
-    // Default for a regular owner: their own store (id === profile.id)
-    if (profileRow && list.some(s => s.id === profileRow.id)) return profileRow.id
-    return list[0]?.id ?? null
+    return pickInitialStore({
+      savedId: localStorage.getItem(STORE_PICK_KEY),
+      stores: list,
+      profileId: profileRow?.id,
+    })
   }
 
   async function processSession(session) {

@@ -5,6 +5,7 @@ import { useToast } from '../contexts/ToastContext'
 import { useCurrency } from '../contexts/CurrencyContext'
 import { userMessage } from '../lib/errors'
 import { fmtCurrency, fmtDate } from '../lib/utils'
+import { computeLiveTotals, computeExpectedCash } from '../lib/settlement'
 import Spinner from '../components/Spinner'
 import Modal from '../components/Modal'
 import EmptyState from '../components/EmptyState'
@@ -68,22 +69,7 @@ export default function SettlementPage() {
       supabase.from('movements').select('type, qty, payment_method, plants(price,cost)').eq('settlement_id', settlementId),
       supabase.from('finance_entries').select('type, amount').eq('settlement_id', settlementId),
     ])
-    let sales = 0, cashSales = 0, cost = 0, income = 0, expense = 0, salesCount = 0
-    ;(m ?? []).forEach(mv => {
-      if (mv.type !== 'out') return
-      const qty = Math.abs(mv.qty ?? 0)
-      const p = Number(mv.plants?.price ?? 0)
-      const c = Number(mv.plants?.cost ?? 0)
-      sales += qty * p
-      cost  += qty * c
-      if (!mv.payment_method || mv.payment_method === 'cash') cashSales += qty * p
-      salesCount++
-    })
-    ;(f ?? []).forEach(fe => {
-      if (fe.type === 'income') income += Number(fe.amount ?? 0)
-      else if (fe.type === 'expense') expense += Number(fe.amount ?? 0)
-    })
-    setLiveSales({ sales, cashSales, cost, income, expense, salesCount })
+    setLiveSales(computeLiveTotals(m ?? [], f ?? []))
   }
 
   async function handleOpen() {
@@ -120,7 +106,10 @@ export default function SettlementPage() {
 
   const liveExpected = useMemo(() => {
     if (!today || !liveSales) return null
-    return Number(today.opening_cash) + liveSales.cashSales + liveSales.income - liveSales.expense
+    return computeExpectedCash({
+      opening: today.opening_cash, cashSales: liveSales.cashSales,
+      income: liveSales.income, expense: liveSales.expense,
+    })
   }, [today, liveSales])
 
   if (loading) {

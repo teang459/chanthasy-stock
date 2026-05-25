@@ -2,6 +2,7 @@ import React from 'react'
 import { NavLink, Link } from 'react-router-dom'
 import * as I from '../components/Icons'
 import { useAuth } from '../contexts/AuthContext'
+import { membershipRoleLabel } from '../lib/perms'
 
 const NAV = [
   { to: '/',           label: 'แดชบอร์ด',        Icon: I.Dashboard, end: true },
@@ -25,13 +26,7 @@ export default function Sidebar({ open, lowCount, onClose }) {
   const { profile, logout, perms, isSuperAdmin, stores, currentStoreId } = useAuth()
   const currentStore = stores.find(s => s.id === currentStoreId)
   const user = profile ?? { name: 'ผู้ใช้', initials: 'UU' }
-  const roleLabel = isSuperAdmin
-    ? 'Super Admin'
-    : currentStore?.role === 'store_admin'
-      ? 'Store Admin'
-      : currentStore?.role === 'viewer'
-        ? 'Viewer'
-        : 'Staff'
+  const roleLabel = membershipRoleLabel({ isSuperAdmin, currentStore })
   return (
     <aside className={`sidebar${open ? ' open' : ''}`}>
       <button className="sidebar-close icon-btn" onClick={onClose} aria-label="ปิดเมนู">
