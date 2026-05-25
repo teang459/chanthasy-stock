@@ -11,6 +11,7 @@ const PAGE_NAMES = {
   '/movements':  'ประวัติเคลื่อนไหว',
   '/categories': 'หมวดหมู่',
   '/suppliers':  'ซัพพลายเออร์',
+  '/customers':  'ลูกค้า',
   '/calendar':   'ปฏิทิน',
   '/reports':    'รายงาน',
   '/finance':    'การเงิน',

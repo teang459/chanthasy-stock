@@ -37,7 +37,7 @@ async function fetchAllMovements(ownerId, range) {
   for (;;) {
     let q = supabase
       .from('movements')
-      .select('*, plants(name,sku)')
+      .select('*, plants(name,sku,price)')
       .eq('store_id', ownerId)
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1)
@@ -57,10 +57,11 @@ export default function ReportsPage() {
   const { toast } = useToast()
   const { ownerId } = useAuth()
   const { symbol } = useCurrency()
-  const [plants, setPlants]   = useState([])
-  const [moves, setMoves]     = useState([])
-  const [loading, setLoading] = useState(true)
-  const [range, setRange]     = useState('30')
+  const [plants, setPlants]       = useState([])
+  const [moves, setMoves]         = useState([])
+  const [customers, setCustomers] = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [range, setRange]         = useState('30')
 
   useEffect(() => { if (ownerId) load() }, [range, ownerId])
 
@@ -69,13 +70,16 @@ export default function ReportsPage() {
     setLoading(true)
     try {
       const plantsQ = supabase.from('plants').select('*, categories(name_th,hue)').eq('store_id', ownerId)
-      const [{ data: p, error: pErr }, movesResult] = await Promise.all([
+      const customersQ = supabase.from('customers').select('id,name,code').eq('store_id', ownerId)
+      const [{ data: p, error: pErr }, { data: c }, movesResult] = await Promise.all([
         plantsQ,
+        customersQ,
         fetchAllMovements(ownerId, range),
       ])
       if (pErr) throw pErr
       if (movesResult.error) throw movesResult.error
       setPlants(p ?? [])
+      setCustomers(c ?? [])
       setMoves(movesResult.data)
       if (movesResult.truncated) {
         toast.info('ข้อมูลเคลื่อนไหวมากเกิน 50,000 รายการ — แสดงเฉพาะรายการล่าสุด')
@@ -106,10 +110,25 @@ export default function ReportsPage() {
     })
     const catRows = Object.values(byCat).sort((a, b) => b.value - a.value)
     const topStock = [...plants].sort((a, b) => b.stock - a.stock).slice(0, 10)
+    // Top customers — sum sale movements (qty * plant.price) in the selected range
+    const byCustomer = {}
+    moves.forEach(m => {
+      if (m.type !== 'out' || !m.customer_id) return
+      const qty = Math.abs(m.qty ?? 0)
+      const price = Number(m.plants?.price ?? 0)
+      if (!byCustomer[m.customer_id]) byCustomer[m.customer_id] = { id: m.customer_id, count: 0, total: 0 }
+      byCustomer[m.customer_id].count++
+      byCustomer[m.customer_id].total += qty * price
+    })
+    const customerMap = Object.fromEntries(customers.map(c => [c.id, c]))
+    const topCustomers = Object.values(byCustomer)
+      .map(c => ({ ...c, name: customerMap[c.id]?.name ?? '(ลบแล้ว)', code: customerMap[c.id]?.code }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10)
     const topValue = [...plants].sort((a, b) => (b.stock * b.price) - (a.stock * a.price)).slice(0, 10)
 
-    return { total, outCount, lowCount, okCount, totalStock, totalValue, totalCost, catRows, topStock, topValue }
-  }, [plants])
+    return { total, outCount, lowCount, okCount, totalStock, totalValue, totalCost, catRows, topStock, topValue, topCustomers }
+  }, [plants, moves, customers])
 
   function exportStock() {
     const rows = [
@@ -217,6 +236,34 @@ export default function ReportsPage() {
               </tbody>
             </table>
           </div>
+        </section>
+
+        <section className="card">
+          <div className="card-header"><h2 className="card-title">Top 10 ลูกค้าในช่วงนี้</h2></div>
+          {stats.topCustomers.length === 0 ? (
+            <div className="card-empty" style={{ padding: 24, color: 'var(--muted)' }}>
+              ยังไม่มีข้อมูลลูกค้า — บันทึกการขายพร้อมเลือกลูกค้าใน Stock
+            </div>
+          ) : (
+            <div className="table-wrap" style={{ margin: 0 }}>
+              <table>
+                <thead><tr><th>#</th><th>ลูกค้า</th><th>ครั้ง</th><th>ยอดรวม</th></tr></thead>
+                <tbody>
+                  {stats.topCustomers.map((c, i) => (
+                    <tr key={c.id}>
+                      <td className="mono muted">{i + 1}</td>
+                      <td>
+                        {c.name}
+                        {c.code && <span className="mono" style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>{c.code}</span>}
+                      </td>
+                      <td className="mono">{c.count}</td>
+                      <td className="mono">{fmtCurrency(c.total)} {symbol}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       </div>
     </div>

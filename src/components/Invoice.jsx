@@ -28,6 +28,7 @@ export default function Invoice({ movement, onClose }) {
   const { symbol } = useCurrency()
   const currentStore = stores.find(s => s.id === currentStoreId)
   const [seq, setSeq] = useState(null)
+  const [customer, setCustomer] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -40,9 +41,15 @@ export default function Invoice({ movement, onClose }) {
         .lte('created_at', movement.created_at)
       if (!cancelled) setSeq(count ?? 1)
     }
+    async function loadCustomer() {
+      if (!movement.customer_id) { setCustomer(null); return }
+      const { data } = await supabase.from('customers').select('*').eq('id', movement.customer_id).maybeSingle()
+      if (!cancelled) setCustomer(data ?? null)
+    }
     loadSeq()
+    loadCustomer()
     return () => { cancelled = true }
-  }, [ownerId, movement.created_at])
+  }, [ownerId, movement.created_at, movement.customer_id])
 
   const qty       = Math.abs(movement.qty ?? 0)
   const unit      = Number(movement.plants?.price ?? 0)
@@ -90,7 +97,17 @@ export default function Invoice({ movement, onClose }) {
 
           <section className="invoice-customer">
             <div className="invoice-meta-label">ลูกค้า</div>
-            <div>{movement.note?.trim() || '—'}</div>
+            {customer ? (
+              <div>
+                <div style={{ fontWeight: 500 }}>{customer.name}</div>
+                {customer.address && <div style={{ fontSize: 12, color: '#555' }}>{customer.address}</div>}
+                <div style={{ fontSize: 12, color: '#555' }}>
+                  {[customer.phone, customer.tax_id && `เลขผู้เสียภาษี ${customer.tax_id}`].filter(Boolean).join(' · ')}
+                </div>
+              </div>
+            ) : (
+              <div>{movement.note?.trim() || '— ลูกค้าทั่วไป —'}</div>
+            )}
           </section>
 
           <table className="invoice-table">

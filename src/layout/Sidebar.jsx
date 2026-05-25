@@ -10,6 +10,7 @@ const NAV = [
   { to: '/movements',  label: 'ประวัติเคลื่อนไหว', Icon: I.History },
   { to: '/categories', label: 'หมวดหมู่',          Icon: I.Tag },
   { to: '/suppliers',  label: 'ซัพพลายเออร์',      Icon: I.Truck },
+  { to: '/customers',  label: 'ลูกค้า',            Icon: I.User },
 ]
 const SYSTEM = [
   { to: '/finance',    label: 'การเงิน',     Icon: I.Wallet },

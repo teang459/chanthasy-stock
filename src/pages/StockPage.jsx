@@ -36,6 +36,7 @@ export default function StockPage() {
   const [plants, setPlants]       = useState([])
   const [cats, setCats]           = useState([])
   const [sups, setSups]           = useState([])
+  const [customers, setCustomers] = useState([])
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState(location.state?.search ?? '')
   const [catFilter, setCatFilter] = useState('')
@@ -51,7 +52,7 @@ export default function StockPage() {
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
 
-  const [adjForm, setAdjForm] = useState({ type:'in', qty:1, note:'', payment:'cash' })
+  const [adjForm, setAdjForm] = useState({ type:'in', qty:1, note:'', payment:'cash', customer_id:'' })
   const [page, setPage] = useState(0)
   const PAGE_SIZE = 50
   const [imgUploading, setImgUploading] = useState(false)
@@ -69,8 +70,14 @@ export default function StockPage() {
 
   async function load() {
     setLoading(true)
-    await Promise.all([loadPlants(), loadCats(), loadSups()])
+    await Promise.all([loadPlants(), loadCats(), loadSups(), loadCustomers()])
     setLoading(false)
+  }
+
+  async function loadCustomers() {
+    if (!ownerId) return
+    const { data } = await supabase.from('customers').select('id,name,code').eq('store_id', ownerId).eq('active', true).order('name')
+    setCustomers(data ?? [])
   }
 
   async function loadPlants() {
@@ -222,6 +229,7 @@ export default function StockPage() {
         p_qty:      qty,
         p_note:     adjForm.note?.trim() || null,
         p_payment:  adjForm.type === 'out' ? adjForm.payment : null,
+        p_customer: adjForm.type === 'out' && adjForm.customer_id ? adjForm.customer_id : null,
       })
       if (error) throw error
       toast.success('ปรับสต็อกสำเร็จ')
@@ -365,7 +373,7 @@ export default function StockPage() {
                   <td><StatusBadge status={statusOf(p)} /></td>
                   <td>
                     <div className="row-actions">
-                      {canAdjust && <button className="icon-btn" title="ปรับสต็อก" onClick={() => { setAdjItem(p); setAdjForm({ type:'in',qty:1,note:'',payment:'cash' }) }}><I.Adjust size={13} /></button>}
+                      {canAdjust && <button className="icon-btn" title="ปรับสต็อก" onClick={() => { setAdjItem(p); setAdjForm({ type:'in',qty:1,note:'',payment:'cash',customer_id:'' }) }}><I.Adjust size={13} /></button>}
                       {canWrite && <button className="icon-btn" title="แก้ไข" onClick={() => openEdit(p)}><I.Edit size={13} /></button>}
                       {canDelete && <button className="icon-btn danger" title="ลบ" onClick={() => setDelItem(p)}><I.Trash size={13} /></button>}
                     </div>
@@ -473,14 +481,26 @@ export default function StockPage() {
               <input type="number" min="0" value={adjForm.qty} onChange={e => setAdjForm(f=>({...f,qty:e.target.value}))} autoFocus />
             </Field>
             {adjForm.type === 'out' && (
-              <Field label="ช่องทางการชำระ">
-                <select value={adjForm.payment} onChange={e => setAdjForm(f=>({...f,payment:e.target.value}))}>
-                  <option value="cash">เงินสด</option>
-                  <option value="transfer">โอนเงิน</option>
-                  <option value="credit">เครดิต / ค้างชำระ</option>
-                  <option value="other">อื่นๆ</option>
-                </select>
-              </Field>
+              <>
+                <Field label="ช่องทางการชำระ">
+                  <select value={adjForm.payment} onChange={e => setAdjForm(f=>({...f,payment:e.target.value}))}>
+                    <option value="cash">เงินสด</option>
+                    <option value="transfer">โอนเงิน</option>
+                    <option value="credit">เครดิต / ค้างชำระ</option>
+                    <option value="other">อื่นๆ</option>
+                  </select>
+                </Field>
+                <Field label="ลูกค้า" hint="ไม่บังคับ — เลือกถ้าเป็นลูกค้าประจำ">
+                  <select value={adjForm.customer_id} onChange={e => setAdjForm(f=>({...f,customer_id:e.target.value}))}>
+                    <option value="">— ลูกค้าทั่วไป —</option>
+                    {customers.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.code ? `[${c.code}] ${c.name}` : c.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </>
             )}
             <Field label="หมายเหตุ">
               <input value={adjForm.note} onChange={e => setAdjForm(f=>({...f,note:e.target.value}))} placeholder="เหตุผลการปรับ..." />
