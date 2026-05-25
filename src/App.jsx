@@ -1,5 +1,5 @@
 import React, { useEffect, lazy, Suspense } from 'react'
-import { HashRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ToastProvider } from './contexts/ToastContext'
 import { CurrencyProvider } from './contexts/CurrencyContext'
@@ -26,6 +26,7 @@ const SettingsPage   = lazy(() => import('./pages/SettingsPage'))
 const AdminPage      = lazy(() => import('./pages/AdminPage'))
 const TermsPage      = lazy(() => import('./pages/TermsPage'))
 const PrivacyPage    = lazy(() => import('./pages/PrivacyPage'))
+const LandingPage    = lazy(() => import('./pages/LandingPage'))
 
 function RecoveryHandler() {
   const { isRecoveryMode } = useAuth()
@@ -38,8 +39,13 @@ function RecoveryHandler() {
 
 function Guard({ children }) {
   const { user, loading, mfaRequired } = useAuth()
+  const location = useLocation()
   if (loading) return <div className="fullscreen-center"><Spinner size={36} /></div>
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) {
+    // Show public landing at root; redirect deep links to the login page.
+    if (location.pathname === '/') return <LandingPage />
+    return <Navigate to="/login" replace />
+  }
   if (mfaRequired) return <MfaChallengePage />
   return children
 }
