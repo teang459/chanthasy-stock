@@ -3,8 +3,14 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useCurrency } from '../contexts/CurrencyContext'
 import { fmtCurrency } from '../lib/utils'
+import { vatBreakdown, hasVat } from '../lib/vat'
 import Spinner from './Spinner'
 import * as I from './Icons'
+
+function fmtMoney(n) {
+  if (n == null || Number.isNaN(n)) return '—'
+  return Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 
 function pad(n, w = 4) { return String(n).padStart(w, '0') }
 
@@ -37,11 +43,14 @@ export default function Invoice({ movement, onClose }) {
     return () => { cancelled = true }
   }, [ownerId, movement.created_at])
 
-  const qty   = Math.abs(movement.qty ?? 0)
-  const unit  = Number(movement.plants?.price ?? 0)
-  const total = qty * unit
-  const issued = new Date(movement.created_at)
-  const number = seq == null ? '…' : buildInvoiceNo(movement.created_at, seq)
+  const qty       = Math.abs(movement.qty ?? 0)
+  const unit      = Number(movement.plants?.price ?? 0)
+  const lineTotal = qty * unit
+  const vat       = vatBreakdown(lineTotal, profile)
+  const showVat   = hasVat(profile)
+  const issued    = new Date(movement.created_at)
+  const number    = seq == null ? '…' : buildInvoiceNo(movement.created_at, seq)
+  const docTitle  = showVat ? 'ใบกำกับภาษี / ใบเสร็จรับเงิน' : 'ใบเสร็จรับเงิน / RECEIPT'
 
   return (
     <div className="invoice-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -63,9 +72,14 @@ export default function Invoice({ movement, onClose }) {
             <div>
               <div className="invoice-shop">{profile?.shop_name?.trim() || profile?.name || 'My Shop'}</div>
               <div className="invoice-sub">{profile?.name && profile?.shop_name ? profile.name : ''}</div>
+              {profile?.tax_id && (
+                <div className="invoice-sub mono" style={{ marginTop: 4 }}>
+                  เลขผู้เสียภาษี: {profile.tax_id}
+                </div>
+              )}
             </div>
             <div className="invoice-meta">
-              <div className="invoice-title">ใบเสร็จรับเงิน / RECEIPT</div>
+              <div className="invoice-title">{docTitle}</div>
               <div><span className="invoice-meta-label">เลขที่:</span> <span className="mono">{number}</span></div>
               <div><span className="invoice-meta-label">วันที่:</span> {issued.toLocaleString('th-TH', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
             </div>
@@ -95,14 +109,29 @@ export default function Invoice({ movement, onClose }) {
                 </td>
                 <td style={{ textAlign: 'right' }} className="mono">{qty}</td>
                 <td style={{ textAlign: 'right' }} className="mono">{fmtCurrency(unit)} {symbol}</td>
-                <td style={{ textAlign: 'right' }} className="mono">{fmtCurrency(total)} {symbol}</td>
+                <td style={{ textAlign: 'right' }} className="mono">{fmtCurrency(lineTotal)} {symbol}</td>
               </tr>
             </tbody>
             <tfoot>
+              {showVat && (
+                <>
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: 'right' }}>มูลค่าก่อน VAT</td>
+                    <td style={{ textAlign: 'right' }} className="mono">{fmtMoney(vat.base)} {symbol}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: 'right' }}>
+                      ภาษีมูลค่าเพิ่ม {Number(vat.rate).toFixed(vat.rate % 1 === 0 ? 0 : 2)}%
+                      {!vat.inclusive && <span style={{ fontSize: 11, color: '#666' }}> (แยกต่างหาก)</span>}
+                    </td>
+                    <td style={{ textAlign: 'right' }} className="mono">{fmtMoney(vat.vat)} {symbol}</td>
+                  </tr>
+                </>
+              )}
               <tr>
                 <td colSpan={4} style={{ textAlign: 'right', fontWeight: 600 }}>รวมทั้งสิ้น</td>
                 <td style={{ textAlign: 'right', fontWeight: 700, fontSize: 14 }} className="mono">
-                  {fmtCurrency(total)} {symbol}
+                  {showVat ? fmtMoney(vat.total) : fmtCurrency(lineTotal)} {symbol}
                 </td>
               </tr>
             </tfoot>

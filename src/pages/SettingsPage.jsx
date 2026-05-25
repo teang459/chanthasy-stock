@@ -19,10 +19,37 @@ export default function SettingsPage() {
   const [notifPerm, setNotifPerm]     = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported')
   const [saving, setSaving]           = useState(false)
   const [exporting, setExporting]     = useState(false)
+  const [taxForm, setTaxForm] = useState({ tax_id: '', vat_rate: '0', vat_inclusive: true })
+  const [savingTax, setSavingTax] = useState(false)
 
   useEffect(() => {
-    if (profile) setProfileForm({ name: profile.name ?? '', initials: profile.initials ?? '', shop_name: profile.shop_name ?? '' })
+    if (profile) {
+      setProfileForm({ name: profile.name ?? '', initials: profile.initials ?? '', shop_name: profile.shop_name ?? '' })
+      setTaxForm({
+        tax_id: profile.tax_id ?? '',
+        vat_rate: String(profile.vat_rate ?? 0),
+        vat_inclusive: profile.vat_inclusive ?? true,
+      })
+    }
   }, [profile])
+
+  async function handleTaxSave(e) {
+    e.preventDefault()
+    const rate = Number(taxForm.vat_rate)
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+      toast.error('อัตรา VAT ต้องอยู่ระหว่าง 0 - 100')
+      return
+    }
+    setSavingTax(true)
+    const { error } = await updateProfile({
+      tax_id: taxForm.tax_id?.trim() || null,
+      vat_rate: rate,
+      vat_inclusive: !!taxForm.vat_inclusive,
+    })
+    setSavingTax(false)
+    if (error) toast.error(`บันทึกไม่สำเร็จ: ${userMessage(error)}`)
+    else toast.success('บันทึกการตั้งค่าภาษีสำเร็จ')
+  }
 
   async function handleProfileSave(e) {
     e.preventDefault()
@@ -187,6 +214,60 @@ export default function SettingsPage() {
               ปัจจุบัน: <strong>{currency === 'LAK' ? 'ກີບ (₭)' : 'บาท (฿)'}</strong>
             </p>
           </div>
+        </section>
+
+        {/* Tax / VAT */}
+        <section className="card">
+          <div className="card-header"><h2 className="card-title"><I.Wallet size={14} /> ภาษีและ VAT</h2></div>
+          <form onSubmit={handleTaxSave} className="form-stack settings-card-body">
+            <p className="settings-hint" style={{ marginTop: 0 }}>
+              ตั้งค่าเลขผู้เสียภาษีและอัตรา VAT — ใช้กับใบกำกับภาษี/ใบเสร็จที่ออกจากระบบ
+            </p>
+            <Field label="เลขผู้เสียภาษี" hint="ปล่อยว่างถ้าไม่จด VAT (ใบเสร็จจะไม่แสดง)">
+              <input
+                value={taxForm.tax_id}
+                onChange={e => setTaxForm(f => ({ ...f, tax_id: e.target.value }))}
+                placeholder="0-0000-00000-00-0"
+                maxLength={20}
+                inputMode="numeric"
+              />
+            </Field>
+            <Field label="อัตรา VAT (%)" hint="ตั้ง 0 หากไม่คิดภาษี (ค่าเริ่มต้นในไทยคือ 7)">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                value={taxForm.vat_rate}
+                onChange={e => setTaxForm(f => ({ ...f, vat_rate: e.target.value }))}
+              />
+            </Field>
+            <Field label="ราคารวม VAT หรือไม่" hint="รีเทล: ราคาในระบบรวม VAT แล้ว · B2B: VAT บวกเพิ่ม">
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  className={`btn ${taxForm.vat_inclusive ? 'btn-primary' : 'btn-ghost'}`}
+                  onClick={() => setTaxForm(f => ({ ...f, vat_inclusive: true }))}
+                  style={{ flex: 1, justifyContent: 'center' }}
+                >
+                  รวม VAT (รีเทล)
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${!taxForm.vat_inclusive ? 'btn-primary' : 'btn-ghost'}`}
+                  onClick={() => setTaxForm(f => ({ ...f, vat_inclusive: false }))}
+                  style={{ flex: 1, justifyContent: 'center' }}
+                >
+                  แยกต่างหาก (B2B)
+                </button>
+              </div>
+            </Field>
+            <div className="form-actions">
+              <button type="submit" className="btn btn-primary" disabled={savingTax}>
+                {savingTax ? <Spinner size={14} color="#fff" /> : 'บันทึกการตั้งค่าภาษี'}
+              </button>
+            </div>
+          </form>
         </section>
 
         {/* Notifications */}

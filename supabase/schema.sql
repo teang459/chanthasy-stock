@@ -15,14 +15,17 @@
 
 -- Profiles (linked to auth.users; owner = self, staff = manager_id set)
 CREATE TABLE IF NOT EXISTS profiles (
-  id         UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
-  name       TEXT NOT NULL DEFAULT '',
-  role       TEXT NOT NULL DEFAULT 'staff' CHECK (role IN ('admin','staff','viewer')),
-  initials   TEXT NOT NULL DEFAULT '',
-  shop_name  TEXT,
-  manager_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
-  currency   TEXT NOT NULL DEFAULT 'THB' CHECK (currency IN ('THB','LAK')),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  id            UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  name          TEXT NOT NULL DEFAULT '',
+  role          TEXT NOT NULL DEFAULT 'staff' CHECK (role IN ('admin','staff','viewer')),
+  initials      TEXT NOT NULL DEFAULT '',
+  shop_name     TEXT,
+  manager_id    UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  currency      TEXT NOT NULL DEFAULT 'THB' CHECK (currency IN ('THB','LAK')),
+  tax_id        TEXT,
+  vat_rate      NUMERIC(5,2) NOT NULL DEFAULT 0 CHECK (vat_rate >= 0 AND vat_rate <= 100),
+  vat_inclusive BOOLEAN NOT NULL DEFAULT true,
+  updated_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Categories (per-owner)
