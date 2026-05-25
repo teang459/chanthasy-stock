@@ -670,17 +670,73 @@ UPDATE profiles SET role = 'super_admin'
 
 ---
 
-## 10. Open Questions
+## 10. Decisions (answered 2026-05-25)
 
-ก่อนเริ่ม implement ขอตัดสินใจประเด็นต่อไปนี้:
+### Q1 — Code structure: incremental หรือ big-bang branch?
 
-1. **Code structure:** ทำทีละ phase แล้ว commit ทีละ phase, หรือทำเป็น branch แล้ว merge ทีเดียว?
-2. **Payment methods:** เริ่มแค่ `cash`/`transfer` หรือใส่ `credit`/`other` เลย? (เกี่ยวกับ settlement diff)
-3. **Multi-currency per store:** store มี currency ของตัวเอง vs ใช้ของ user (จากของเดิม). แผนนี้เอาเป็นของ store
-4. **Tax invoice numbering:** ตอนนี้คำนวณจาก count of `out` movements ของ owner. หลังเปลี่ยน → ของ store (จะ renumber ทันที). OK?
-5. **Settlement timezone:** ใช้ Asia/Bangkok เป็นค่าหลัก หรือ allow store-level timezone?
-6. **Stock อ้างอิงสาขา:** ปัจจุบันแต่ละ plant มี stock เดียว — ถ้าร้านมี 2 สาขาและ plant ชื่อเดียวกัน ต้องแยก plants คนละ row (FK ไป store) ใช่ไหม? ขัดแย้งกับ "Multi-warehouse" ที่จะทำใน Phase 5 หรือไม่?
-7. **Re-open settlement audit:** เก็บ log ของการ reopen หรือไม่ (เพิ่มตาราง `settlement_audit`)?
+**ตอบ: Incremental commits, ทีละ phase**
+
+- เหตุผล: ข้อมูล production ตอนนี้เล็กมาก (4 owners, 16 movements) → risk ต่อ phase ต่ำ. CI gate (lint/test/build) จับ regression ได้ทันที. Phase A+B เป็น additive — รัน production ได้เลยโดยไม่ต้องรอ frontend
+- วิธี: commit/PR แยกต่อ migration (006, 007, 008, 009) + frontend ขั้นต่อขั้น
+- ถ้า Phase C cutover ผิด → ยังมี policy เก่าทำงานคู่ขนาน (additive) ก่อน DROP
+
+### Q2 — Payment methods ใส่กี่แบบ?
+
+**ตอบ: ใส่ทั้ง 4 ตั้งแต่แรก — `cash`, `transfer`, `credit`, `other`**
+
+- เหตุผล: cost = CHECK constraint ยาวขึ้น 2 ตัว, dropdown UI เพิ่ม 2 option. settlement diff ต้องการแค่ "cash vs ไม่ cash" — แต่การมี credit/other ตั้งแต่แรกทำให้ report (เช่น "ยอดขายค้างชำระ" = credit) ใช้ได้ทันทีโดยไม่ต้อง migrate ภายหลัง
+- Default = `cash` (movement ที่ insert จาก legacy code โดยไม่กรอก)
+
+### Q3 — Currency per store
+
+**ตอบ: ใช้ของ store** (ตามที่ plan เสนอ)
+
+- `stores.currency` เป็น single source of truth
+- `profiles.currency` กลายเป็น user preference สำหรับการแสดงผลเท่านั้น (เช่น ผู้ใช้ลาวอยากเห็น LAK บน UI แม้ store เป็น THB) — Phase C cleanup จะลบทิ้งถ้าไม่จำเป็น
+
+### Q4 — Tax invoice numbering หลัง migrate
+
+**ตอบ: OK — 1:1 backfill ทำให้เลขเดิมไม่เปลี่ยน**
+
+- ปัจจุบัน: `INV-YYYYMMDD-NNNN` จาก count of `out` movements WHERE owner_id = X
+- หลัง backfill: store.id = owner.id (1:1) → count of `out` movements WHERE store_id = X ได้ค่าเหมือนเดิม
+- **Edge case (document ไว้):** ถ้าอนาคต super admin "merge" หรือ "split" stores จะ renumber. v1 ไม่มี feature นี้ — เพิ่มทีหลังพร้อม migration เลข
+
+### Q5 — Settlement timezone
+
+**ตอบ: hardcode `Asia/Bangkok` (UTC+7) ใน v1**
+
+- เหตุผล: THB และ LAK ทั้งคู่อยู่ UTC+7 (Bangkok = Vientiane). zero use case ตอนนี้
+- Implementation: ใน `open_day` RPC ใช้ `(NOW() AT TIME ZONE 'Asia/Bangkok')::date` แทน `CURRENT_DATE` ดิบ
+- เปิด `stores.timezone TEXT DEFAULT 'Asia/Bangkok'` ในตารางไว้แต่ยังไม่ใช้ — ลด cost migration อนาคต
+
+### Q6 — Reopen settlement audit
+
+**ตอบ: append ลง `daily_settlements.note` ใน v1 พอ**
+
+- เหตุผล: ทุกการ reopen เก็บ "[reopen 2026-XX-XX by uid] reason" ใน text column. ไม่ต้องตารางใหม่
+- Tradeoff: query audit ลำบาก แต่ v1 ไม่ต้องการ compliance level — เพิ่มตาราง `settlement_audit` เมื่อมีลูกค้าที่ต้องการ จริงๆ
+- เพิ่ม audit ตารางใหม่ในอนาคตเป็น additive migration ไม่ break อะไร
+
+### Q7 — Tax fields ย้าย profile → store
+
+**ตอบ: ย้ายไปอยู่ที่ store**
+
+- เหตุผล: tax_id, vat_rate, vat_inclusive เป็นข้อมูลของ "ร้าน" ไม่ใช่ "คน" — ใบกำกับภาษีออกในนามร้าน. ถ้า super admin มี 5 ร้าน ก็มี tax_id 5 เลข
+- Migration B1 จะ copy ค่าจาก profile → store ตอน backfill (1:1) — ใบเสร็จเดิมไม่กระทบ
+- Phase C cleanup: ลบ `profiles.tax_id`, `profiles.vat_rate`, `profiles.vat_inclusive` (โค้ดที่ใช้อ้างอิงต้อง refactor)
+
+### Q8 (เพิ่ม) — Stock per-plant vs per-store
+
+**ตอบ: Option A — one plant row per (store, sku)** ใน v1; multi-warehouse (B8) เป็นเรื่องของ Phase 5
+
+- เหตุผล:
+  1. Backfill 1:1 — plants เดิมทุกแถวมี owner_id → store_id ตรงๆ ไม่ต้องแตกแถว
+  2. ร้าน 2 สาขาขายต้นไม้ชื่อเดียวกัน = 2 plants คนละแถว (SKU code อาจซ้ำคนละ store ได้ — UNIQUE จะเป็น `(store_id, sku)`)
+  3. Multi-warehouse จริง (Phase 5) คือ plant เดียว แต่ stock แยกตาม location — ใช้ตาราง `plant_stocks(plant_id, location_id, qty)` แยกออกมา ไม่ conflict
+- เปลี่ยน UNIQUE INDEX:
+  - `plants_sku_per_owner` → `plants_sku_per_store` ON `plants(store_id, sku)`
+  - เช่นเดียวกับ `categories_code_per_store`, `suppliers_code_per_store`
 
 ---
 
@@ -702,4 +758,4 @@ UPDATE profiles SET role = 'super_admin'
 
 ---
 
-**Reviewer:** กรุณาตอบ Open Questions (ข้อ 10) ก่อนเริ่ม Step 2
+**สถานะ:** Decisions ครบแล้ว (Section 10). พร้อมเริ่ม Step 2 — migration `006_stores_phase_a.sql`
