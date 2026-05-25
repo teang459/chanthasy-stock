@@ -8,11 +8,14 @@ import Field from '../components/Field'
 import MfaEnroll from '../components/MfaEnroll'
 import * as I from '../components/Icons'
 import { userMessage, passwordIssue } from '../lib/errors'
+import { useT } from '../i18n'
+import LanguageSwitcher from '../components/LanguageSwitcher'
 
 export default function SettingsPage() {
   const { user, profile, stores, currentStoreId, updateProfile, refreshProfile,
           changePassword, logout, isSuperAdmin } = useAuth()
   const { toast } = useToast()
+  const t = useT()
   const { currency, setCurrency } = useCurrency()
   const currentStore = stores.find(s => s.id === currentStoreId)
   const canEditStore = isSuperAdmin || currentStore?.role === 'store_admin'
@@ -146,9 +149,9 @@ export default function SettingsPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <div><h1 className="page-title">ตั้งค่า</h1></div>
+        <div><h1 className="page-title">{t('settings.page_title')}</h1></div>
         <button className="btn btn-danger" onClick={logout} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <I.LogOut size={14} /> ออกจากระบบ
+          <I.LogOut size={14} /> {t('nav.logout')}
         </button>
       </div>
 
@@ -267,26 +270,34 @@ export default function SettingsPage() {
           </form>
         </section>
 
-        {/* Currency */}
+        {/* Language */}
         <section className="card">
-          <div className="card-header"><h2 className="card-title"><I.Chart size={14} /> สกุลเงิน</h2></div>
+          <div className="card-header"><h2 className="card-title">🌐 {t('settings.locale_title')}</h2></div>
           <div className="settings-card-body">
-            <p className="settings-hint">เลือกสกุลเงินที่ใช้แสดงราคาในระบบ</p>
+            <p className="settings-hint">{t('settings.locale_hint')}</p>
+            <div style={{ marginTop: 6 }}>
+              <LanguageSwitcher />
+            </div>
+          </div>
+        </section>
+
+        {/* Currency (display only) */}
+        <section className="card">
+          <div className="card-header"><h2 className="card-title"><I.Chart size={14} /> {t('settings.currency_title')}</h2></div>
+          <div className="settings-card-body">
+            <p className="settings-hint">{t('settings.currency_hint')}</p>
             <div className="currency-options">
               <button className={`currency-btn ${currency === 'THB' ? 'active' : ''}`}
-                onClick={() => { setCurrency('THB'); toast.success('เปลี่ยนเป็นสกุลเงินบาท (฿)') }}>
+                onClick={() => setCurrency('THB')}>
                 <span className="currency-symbol">฿</span>
                 <div><div className="currency-name">บาทไทย</div><div className="currency-code">THB</div></div>
               </button>
               <button className={`currency-btn ${currency === 'LAK' ? 'active' : ''}`}
-                onClick={() => { setCurrency('LAK'); toast.success('ປ່ຽນເປັນສະກຸນເງິນກີບ (₭)') }}>
+                onClick={() => setCurrency('LAK')}>
                 <span className="currency-symbol">₭</span>
                 <div><div className="currency-name">ກີບລາວ</div><div className="currency-code">LAK</div></div>
               </button>
             </div>
-            <p className="settings-hint" style={{ marginTop: 12 }}>
-              ปัจจุบัน: <strong>{currency === 'LAK' ? 'ກີບ (₭)' : 'บาท (฿)'}</strong>
-            </p>
           </div>
         </section>
 

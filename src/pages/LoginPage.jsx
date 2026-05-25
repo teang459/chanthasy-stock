@@ -3,11 +3,14 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { userMessage } from '../lib/errors'
+import { useT } from '../i18n'
+import LanguageSwitcher from '../components/LanguageSwitcher'
 import * as I from '../components/Icons'
 import Spinner from '../components/Spinner'
 
 export default function LoginPage() {
   const { user, login } = useAuth()
+  const t = useT()
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw]     = useState(false)
@@ -24,13 +27,13 @@ export default function LoginPage() {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    if (!email.trim()) { setError('กรุณาระบุอีเมล'); return }
-    if (!password)     { setError('กรุณาระบุรหัสผ่าน'); return }
+    if (!email.trim()) { setError(t('login.err_need_email')); return }
+    if (!password)     { setError(t('login.err_need_password')); return }
     setLoading(true)
     try {
       await login(email.trim(), password)
     } catch (err) {
-      setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง')
+      setError(t('login.err_invalid'))
     } finally {
       setLoading(false)
     }
@@ -62,29 +65,29 @@ export default function LoginPage() {
             <div className="brand-mark" style={{ width: 48, height: 48, fontSize: 20 }}>CS</div>
             <div>
               <div className="brand-name" style={{ fontSize: 20 }}>Chanthasy</div>
-              <div className="brand-sub">รีเซ็ตรหัสผ่าน</div>
+              <div className="brand-sub">{t('login.reset_title')}</div>
             </div>
           </div>
 
           {resetDone ? (
             <div style={{ textAlign: 'center', padding: '12px 0' }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>📧</div>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>ส่งลิงก์แล้ว</div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>{t('login.reset_done_title')}</div>
               <div style={{ color: 'var(--muted)', fontSize: 13 }}>
-                ตรวจสอบอีเมล <strong>{resetEmail}</strong> แล้วคลิกลิงก์เพื่อตั้งรหัสผ่านใหม่
+                {t('login.reset_done_desc', { email: resetEmail })}
               </div>
               <button
                 className="btn btn-ghost"
                 style={{ marginTop: 20, width: '100%', justifyContent: 'center' }}
                 onClick={() => { setResetMode(false); setResetDone(false); setError('') }}
               >
-                กลับไปหน้าเข้าสู่ระบบ
+                {t('login.reset_back')}
               </button>
             </div>
           ) : (
             <form onSubmit={handleReset} noValidate>
               <div className="field">
-                <span className="field-label">อีเมล</span>
+                <span className="field-label">{t('login.email')}</span>
                 <input
                   type="email"
                   placeholder="admin@chanthasy.com"
@@ -107,7 +110,7 @@ export default function LoginPage() {
                 style={{ width: '100%', marginTop: 20, justifyContent: 'center', gap: 8 }}
                 disabled={resetLoading}
               >
-                {resetLoading ? <Spinner size={16} color="#fff" /> : 'ส่งลิงก์รีเซ็ตรหัสผ่าน'}
+                {resetLoading ? <Spinner size={16} color="#fff" /> : t('login.reset_submit')}
               </button>
 
               <button
@@ -116,7 +119,7 @@ export default function LoginPage() {
                 style={{ width: '100%', marginTop: 8, justifyContent: 'center' }}
                 onClick={() => { setResetMode(false); setError('') }}
               >
-                ยกเลิก
+                {t('common.cancel')}
               </button>
             </form>
           )}
@@ -132,13 +135,13 @@ export default function LoginPage() {
           <div className="brand-mark" style={{ width: 48, height: 48, fontSize: 20 }}>CS</div>
           <div>
             <div className="brand-name" style={{ fontSize: 20 }}>Chanthasy</div>
-            <div className="brand-sub">ระบบจัดการสต็อกต้นไม้</div>
+            <div className="brand-sub">{t('login.brand_sub')}</div>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="field">
-            <span className="field-label">อีเมล</span>
+            <span className="field-label">{t('login.email')}</span>
             <input
               type="email"
               placeholder="admin@chanthasy.com"
@@ -150,7 +153,7 @@ export default function LoginPage() {
           </div>
 
           <div className="field" style={{ marginTop: 12 }}>
-            <span className="field-label">รหัสผ่าน</span>
+            <span className="field-label">{t('login.password')}</span>
             <div style={{ position: 'relative' }}>
               <input
                 type={showPw ? 'text' : 'password'}
@@ -164,7 +167,7 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => setShowPw(v => !v)}
                 style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 2 }}
-                aria-label={showPw ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                aria-label={showPw ? t('common.close') : t('common.confirm')}
               >
                 {showPw ? <I.EyeOff size={14} /> : <I.Eye size={14} />}
               </button>
@@ -178,7 +181,7 @@ export default function LoginPage() {
           )}
 
           <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: 20, justifyContent: 'center', gap: 8 }} disabled={loading}>
-            {loading ? <Spinner size={16} color="#fff" /> : 'เข้าสู่ระบบ'}
+            {loading ? <Spinner size={16} color="#fff" /> : t('login.submit')}
           </button>
         </form>
 
@@ -189,13 +192,17 @@ export default function LoginPage() {
             style={{ fontSize: 13, color: 'var(--muted)', padding: '4px 8px' }}
             onClick={() => { setResetMode(true); setResetEmail(email); setError('') }}
           >
-            ลืมรหัสผ่าน?
+            {t('login.forgot')}
           </button>
         </div>
 
         <div className="login-hint">
           <I.Info size={12} />
-          <span>ติดต่อผู้ดูแลระบบเพื่อขอบัญชีผู้ใช้</span>
+          <span>{t('login.contact_admin')}</span>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+          <LanguageSwitcher compact />
         </div>
       </div>
     </div>

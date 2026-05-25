@@ -2,28 +2,30 @@ import React from 'react'
 import { NavLink, Link } from 'react-router-dom'
 import * as I from '../components/Icons'
 import { useAuth } from '../contexts/AuthContext'
+import { useT } from '../i18n'
 import { membershipRoleLabel } from '../lib/perms'
 
 const NAV = [
-  { to: '/',           label: 'แดชบอร์ด',        Icon: I.Dashboard, end: true },
-  { to: '/stock',      label: 'รายการสต็อก',      Icon: I.Box },
-  { to: '/low',        label: 'แจ้งเตือนสต็อก',   Icon: I.Alert,   alert: true },
-  { to: '/movements',  label: 'ประวัติเคลื่อนไหว', Icon: I.History },
-  { to: '/categories', label: 'หมวดหมู่',          Icon: I.Tag },
-  { to: '/suppliers',  label: 'ซัพพลายเออร์',      Icon: I.Truck },
-  { to: '/customers',  label: 'ลูกค้า',            Icon: I.User },
-  { to: '/purchase-orders', label: 'ใบสั่งซื้อ',    Icon: I.Truck, perm: 'perm_receive' },
+  { to: '/',                key: 'dashboard',        Icon: I.Dashboard, end: true },
+  { to: '/stock',           key: 'stock',            Icon: I.Box },
+  { to: '/low',             key: 'low',              Icon: I.Alert,   alert: true },
+  { to: '/movements',       key: 'movements',        Icon: I.History },
+  { to: '/categories',      key: 'categories',       Icon: I.Tag },
+  { to: '/suppliers',       key: 'suppliers',        Icon: I.Truck },
+  { to: '/customers',       key: 'customers',        Icon: I.User },
+  { to: '/purchase-orders', key: 'purchase_orders',  Icon: I.Truck, perm: 'perm_receive' },
 ]
 const SYSTEM = [
-  { to: '/finance',    label: 'การเงิน',     Icon: I.Wallet },
-  { to: '/settlement', label: 'ปิดยอด',     Icon: I.Lock,   perm: 'perm_settle' },
-  { to: '/calendar',   label: 'ปฏิทิน',     Icon: I.Calendar },
-  { to: '/reports',    label: 'รายงาน',     Icon: I.Chart },
-  { to: '/settings',   label: 'ตั้งค่า',    Icon: I.Gear },
+  { to: '/finance',    key: 'finance',    Icon: I.Wallet },
+  { to: '/settlement', key: 'settlement', Icon: I.Lock,    perm: 'perm_settle' },
+  { to: '/calendar',   key: 'calendar',   Icon: I.Calendar },
+  { to: '/reports',    key: 'reports',    Icon: I.Chart },
+  { to: '/settings',   key: 'settings',   Icon: I.Gear },
 ]
 
 export default function Sidebar({ open, lowCount, onClose }) {
   const { profile, logout, perms, isSuperAdmin, stores, currentStoreId } = useAuth()
+  const t = useT()
   const currentStore = stores.find(s => s.id === currentStoreId)
   const user = profile ?? { name: 'ผู้ใช้', initials: 'UU' }
   const roleLabel = membershipRoleLabel({ isSuperAdmin, currentStore })
@@ -44,13 +46,13 @@ export default function Sidebar({ open, lowCount, onClose }) {
       </div>
 
       <nav className="nav" onClick={onClose}>
-        <div className="nav-section-label">ทั่วไป</div>
-        {NAV.map(({ to, label, Icon, end, alert, perm }) => {
+        <div className="nav-section-label">{t('nav.section_general')}</div>
+        {NAV.map(({ to, key, Icon, end, alert, perm }) => {
           if (perm && !isSuperAdmin && !perms?.[perm]) return null
           return (
             <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               <Icon size={15} />
-              <span>{label}</span>
+              <span>{t(`nav.${key}`)}</span>
               {alert && lowCount > 0 && (
                 <span className="nav-count" style={{ color: 'var(--amber-ink)', background: 'var(--amber-soft)' }}>
                   {lowCount}
@@ -59,13 +61,13 @@ export default function Sidebar({ open, lowCount, onClose }) {
             </NavLink>
           )
         })}
-        <div className="nav-section-label">ระบบ</div>
-        {SYSTEM.map(({ to, label, Icon, perm }) => {
+        <div className="nav-section-label">{t('nav.section_system')}</div>
+        {SYSTEM.map(({ to, key, Icon, perm }) => {
           if (perm && !isSuperAdmin && !perms?.[perm]) return null
           return (
             <NavLink key={to} to={to} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               <Icon size={15} />
-              <span>{label}</span>
+              <span>{t(`nav.${key}`)}</span>
             </NavLink>
           )
         })}
@@ -74,18 +76,18 @@ export default function Sidebar({ open, lowCount, onClose }) {
       {isSuperAdmin && (
         <NavLink to="/admin" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={{ margin: '0 8px 4px' }}>
           <I.Gear size={15} />
-          <span>Admin Panel</span>
+          <span>{t('nav.admin_panel')}</span>
         </NavLink>
       )}
       {(isSuperAdmin || stores.some(s => s.role === 'store_admin')) && (
         <NavLink to="/audit" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={{ margin: '0 8px 4px' }}>
           <I.History size={15} />
-          <span>Audit Log</span>
+          <span>{t('nav.audit_log')}</span>
         </NavLink>
       )}
       <div style={{ display: 'flex', gap: 12, padding: '6px 16px 4px', fontSize: 11, color: 'var(--muted)' }}>
-        <Link to="/terms" style={{ color: 'var(--muted)', textDecoration: 'none' }} onClick={onClose}>ข้อกำหนด</Link>
-        <Link to="/privacy" style={{ color: 'var(--muted)', textDecoration: 'none' }} onClick={onClose}>นโยบาย</Link>
+        <Link to="/terms" style={{ color: 'var(--muted)', textDecoration: 'none' }} onClick={onClose}>{t('nav.terms')}</Link>
+        <Link to="/privacy" style={{ color: 'var(--muted)', textDecoration: 'none' }} onClick={onClose}>{t('nav.privacy')}</Link>
       </div>
 
       <div className="sidebar-footer">
@@ -94,7 +96,7 @@ export default function Sidebar({ open, lowCount, onClose }) {
           <div className="user-name">{user.name}</div>
           <div className="user-role">{roleLabel}</div>
         </div>
-        <button className="icon-btn" title="ออกจากระบบ" onClick={logout} style={{ marginLeft: 'auto', flexShrink: 0 }}>
+        <button className="icon-btn" title={t('nav.logout')} onClick={logout} style={{ marginLeft: 'auto', flexShrink: 0 }}>
           <I.LogOut size={14} />
         </button>
       </div>

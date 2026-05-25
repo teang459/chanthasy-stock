@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'r
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ToastProvider } from './contexts/ToastContext'
 import { CurrencyProvider } from './contexts/CurrencyContext'
+import { I18nProvider } from './i18n'
 import Layout from './layout/Layout'
 import Spinner from './components/Spinner'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -59,6 +60,7 @@ const PageFallback = () => <div className="page-center"><Spinner size={32} /></d
 export default function App() {
   return (
     <ErrorBoundary>
+    <I18nProvider>
     <AuthProvider>
       <ToastProvider>
       <CurrencyProvider>
@@ -94,6 +96,7 @@ export default function App() {
       </CurrencyProvider>
       </ToastProvider>
     </AuthProvider>
+    </I18nProvider>
     </ErrorBoundary>
   )
 }

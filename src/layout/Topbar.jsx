@@ -1,24 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useT } from '../i18n'
 import { useToast } from '../contexts/ToastContext'
 import * as I from '../components/Icons'
 
-const PAGE_NAMES = {
-  '/':           'แดชบอร์ด',
-  '/stock':      'รายการสต็อก',
-  '/low':        'แจ้งเตือนสต็อก',
-  '/movements':  'ประวัติเคลื่อนไหว',
-  '/categories': 'หมวดหมู่',
-  '/suppliers':  'ซัพพลายเออร์',
-  '/customers':  'ลูกค้า',
-  '/purchase-orders': 'ใบสั่งซื้อ',
-  '/audit':      'Audit Log',
-  '/calendar':   'ปฏิทิน',
-  '/reports':    'รายงาน',
-  '/finance':    'การเงิน',
-  '/settings':   'ตั้งค่า',
-  '/admin':      'Admin Panel',
+const PAGE_KEY = {
+  '/':                 'dashboard',
+  '/stock':            'stock',
+  '/low':              'low',
+  '/movements':        'movements',
+  '/categories':       'categories',
+  '/suppliers':        'suppliers',
+  '/customers':        'customers',
+  '/purchase-orders':  'purchase_orders',
+  '/audit':            'audit_log',
+  '/calendar':         'calendar',
+  '/reports':          'reports',
+  '/finance':          'finance',
+  '/settlement':       'settlement',
+  '/settings':         'settings',
+  '/admin':            'admin_panel',
 }
 
 export default function Topbar({ onMenuToggle, lowCount, notifications, onNotifToggle, showNotif }) {
@@ -26,9 +28,10 @@ export default function Topbar({ onMenuToggle, lowCount, notifications, onNotifT
   const navigate = useNavigate()
   const { stores, currentStoreId } = useAuth()
   const { toast } = useToast()
+  const t = useT()
   const [q, setQ] = useState('')
   const inputRef = useRef()
-  const here = PAGE_NAMES[location.pathname] ?? 'หน้า'
+  const here = PAGE_KEY[location.pathname] ? t(`nav.${PAGE_KEY[location.pathname]}`) : ''
 
   const currentStore = stores.find(s => s.id === currentStoreId)
   const shopName = currentStore?.name || 'My Shop'
@@ -73,26 +76,26 @@ export default function Topbar({ onMenuToggle, lowCount, notifications, onNotifT
         <input
           ref={inputRef}
           type="search"
-          placeholder="ค้นหา SKU, ชื่อต้นไม้… (Enter)"
+          placeholder={t('topbar.search_placeholder')}
           value={q}
           onChange={e => setQ(e.target.value)}
         />
         <span className="kbd">⌘K</span>
       </form>
 
-      <button className="icon-btn notif-btn" onClick={onNotifToggle} aria-label="การแจ้งเตือน" style={{ position: 'relative' }}>
+      <button className="icon-btn notif-btn" onClick={onNotifToggle} aria-label={t('topbar.notifications')} style={{ position: 'relative' }}>
         <I.Bell size={15} />
         {lowCount > 0 && <span className="notif-dot" />}
       </button>
 
       {showNotif && (
-        <div className="notif-panel" role="dialog" aria-label="การแจ้งเตือน">
+        <div className="notif-panel" role="dialog" aria-label={t('topbar.notifications')}>
           <div className="notif-header">
-            <span>การแจ้งเตือน</span>
-            {lowCount > 0 && <span className="badge badge--low">{lowCount} รายการ</span>}
+            <span>{t('topbar.notifications')}</span>
+            {lowCount > 0 && <span className="badge badge--low">{lowCount} {t('common.items')}</span>}
           </div>
           {notifications.length === 0 ? (
-            <div className="notif-empty">ไม่มีการแจ้งเตือน</div>
+            <div className="notif-empty">{t('topbar.notifications_empty')}</div>
           ) : (
             <div className="notif-list">
               {notifications.map((n, i) => (
