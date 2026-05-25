@@ -9,7 +9,8 @@ import MobileNav from './MobileNav'
 import OnboardingWizard from '../components/OnboardingWizard'
 
 export default function Layout() {
-  const { profile, ownerId, adminViewingOwnerId, setAdminViewingOwnerId, isAdmin } = useAuth()
+  const { profile, ownerId, adminViewingOwnerId, setAdminViewingOwnerId, isAdmin,
+          stores, currentStoreId, setCurrentStoreId, isSuperAdmin } = useAuth()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showNotif, setShowNotif]     = useState(false)
@@ -28,7 +29,7 @@ export default function Layout() {
     fetchLow()
     if (!ownerId) return
     const ch = supabase.channel(`layout-plants-${ownerId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'plants', filter: `owner_id=eq.${ownerId}` }, fetchLow)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'plants', filter: `store_id=eq.${ownerId}` }, fetchLow)
       .subscribe()
     return () => supabase.removeChannel(ch)
   }, [ownerId])
@@ -44,7 +45,7 @@ export default function Layout() {
 
   async function fetchLow() {
     if (!ownerId) { setLowPlants([]); return }
-    const { data } = await supabase.from('plants').select('id,name,stock,min_stock').eq('owner_id', ownerId)
+    const { data } = await supabase.from('plants').select('id,name,stock,min_stock').eq('store_id', ownerId)
     const low = (data ?? []).filter(p => statusOf(p) !== 'ok')
     setLowPlants(low)
   }
@@ -84,6 +85,29 @@ export default function Layout() {
             >
               ออกจากโหมดดู
             </button>
+          </div>
+        )}
+
+        {/* Store switcher: shown when the user belongs to (or can see) more than one store. */}
+        {stores.length > 1 && (
+          <div style={{
+            background: 'var(--bg)', borderBottom: '1px solid var(--border)',
+            padding: '6px 20px', fontSize: 12,
+            display: 'flex', alignItems: 'center', gap: 10,
+          }}>
+            <span style={{ color: 'var(--muted)' }}>สาขา:</span>
+            <select
+              value={currentStoreId ?? ''}
+              onChange={e => setCurrentStoreId(e.target.value)}
+              style={{ padding: '3px 8px', fontSize: 12, minWidth: 200 }}
+            >
+              {stores.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.code} — {s.name}
+                  {isSuperAdmin && s.id !== profile?.id ? ' (admin view)' : ''}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 

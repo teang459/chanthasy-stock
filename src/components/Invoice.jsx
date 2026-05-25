@@ -34,7 +34,7 @@ export default function Invoice({ movement, onClose }) {
       const { count } = await supabase
         .from('movements')
         .select('id', { count: 'exact', head: true })
-        .eq('owner_id', ownerId)
+        .eq('store_id', ownerId)
         .eq('type', 'out')
         .lte('created_at', movement.created_at)
       if (!cancelled) setSeq(count ?? 1)

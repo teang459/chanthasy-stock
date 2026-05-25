@@ -15,9 +15,9 @@ const EMPTY = { code:'', name:'', contact:'', phone:'', email:'', note:'' }
 
 export default function SuppliersPage() {
   const { toast } = useToast()
-  const { user, ownerId, profile } = useAuth()
-  const canWrite  = !profile?.manager_id || ['admin', 'staff'].includes(profile?.role)
-  const canDelete = !profile?.manager_id || profile?.role === 'admin'
+  const { user, ownerId, perms } = useAuth()
+  const canWrite  = perms.perm_manage_plants
+  const canDelete = perms.perm_manage_plants
   const [sups, setSups]         = useState([])
   const [counts, setCounts]     = useState({})
   const [loading, setLoading]   = useState(true)
@@ -34,8 +34,8 @@ export default function SuppliersPage() {
   async function load() {
     if (!ownerId) return
     const [{ data: s }, { data: p }] = await Promise.all([
-      supabase.from('suppliers').select('*').eq('owner_id', ownerId).order('name'),
-      supabase.from('plants').select('supplier_id').eq('owner_id', ownerId),
+      supabase.from('suppliers').select('*').eq('store_id', ownerId).order('name'),
+      supabase.from('plants').select('supplier_id').eq('store_id', ownerId),
     ])
     setSups(s ?? [])
     const cnt = {}
@@ -68,7 +68,7 @@ export default function SuppliersPage() {
         if (error) throw error
         toast.success('แก้ไขซัพพลายเออร์สำเร็จ')
       } else {
-        const { error } = await supabase.from('suppliers').insert({ ...payload, owner_id: ownerId })
+        const { error } = await supabase.from('suppliers').insert({ ...payload, owner_id: ownerId, store_id: ownerId })
         if (error) throw error
         toast.success('เพิ่มซัพพลายเออร์สำเร็จ')
       }

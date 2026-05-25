@@ -40,7 +40,7 @@ export default function CalendarPage() {
     load()
     if (!ownerId) return
     const ch = supabase.channel(`calendar-${ownerId}`)
-      .on('postgres_changes', { event:'*', schema:'public', table:'calendar_events', filter: `owner_id=eq.${ownerId}` }, load)
+      .on('postgres_changes', { event:'*', schema:'public', table:'calendar_events', filter: `store_id=eq.${ownerId}` }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
   }, [year, month, ownerId])
@@ -49,7 +49,7 @@ export default function CalendarPage() {
     const from = `${year}-${String(month+1).padStart(2,'0')}-01`
     const to   = `${year}-${String(month+1).padStart(2,'0')}-${calDaysInMonth(year,month)}`
     if (!ownerId) return
-    const { data, error } = await supabase.from('calendar_events').select('*').eq('owner_id', ownerId).gte('date', from).lte('date', to).order('date').order('time', { nullsFirst: true })
+    const { data, error } = await supabase.from('calendar_events').select('*').eq('store_id', ownerId).gte('date', from).lte('date', to).order('date').order('time', { nullsFirst: true })
     if (error) { toast.error('โหลดไม่สำเร็จ'); setLoading(false); return }
     setEvents(data ?? [])
     setLoading(false)
@@ -97,7 +97,7 @@ export default function CalendarPage() {
     if (Object.keys(errs).length) { setErrors(errs); return }
     setSaving(true)
     try {
-      const payload = { title:form.title.trim(), date:form.date, time:form.time||null, type:form.type, note:form.note?.trim()||null, created_by:user?.id, owner_id: ownerId }
+      const payload = { title:form.title.trim(), date:form.date, time:form.time||null, type:form.type, note:form.note?.trim()||null, created_by:user?.id, owner_id: ownerId, store_id: ownerId }
       if (editItem) {
         const { error } = await supabase.from('calendar_events').update(payload).eq('id', editItem.id)
         if (error) throw error

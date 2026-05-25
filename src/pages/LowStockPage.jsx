@@ -24,7 +24,7 @@ export default function LowStockPage() {
     load()
     if (!ownerId) return
     const ch = supabase.channel(`low-page-${ownerId}`)
-      .on('postgres_changes', { event:'*', schema:'public', table:'plants', filter: `owner_id=eq.${ownerId}` }, load)
+      .on('postgres_changes', { event:'*', schema:'public', table:'plants', filter: `store_id=eq.${ownerId}` }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
   }, [ownerId])
@@ -34,7 +34,7 @@ export default function LowStockPage() {
     const { data, error } = await supabase
       .from('plants')
       .select('*, categories(name_th,hue)')
-      .eq('owner_id', ownerId)
+      .eq('store_id', ownerId)
       .order('stock')
     if (error) { toast.error(`โหลดข้อมูลไม่สำเร็จ: ${userMessage(error)}`); setLoading(false); return }
     setPlants((data ?? []).filter(p => statusOf(p) !== 'ok'))

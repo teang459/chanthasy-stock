@@ -20,8 +20,8 @@ export default function DashboardPage() {
     fetchAll()
     if (!ownerId) return
     const ch = supabase.channel(`dash-${ownerId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'plants',    filter: `owner_id=eq.${ownerId}` }, fetchAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'movements', filter: `owner_id=eq.${ownerId}` }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'plants',    filter: `store_id=eq.${ownerId}` }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'movements', filter: `store_id=eq.${ownerId}` }, fetchAll)
       .subscribe()
     return () => supabase.removeChannel(ch)
   }, [ownerId])
@@ -29,8 +29,8 @@ export default function DashboardPage() {
   async function fetchAll() {
     if (!ownerId) return
     const [{ data: p }, { data: m }] = await Promise.all([
-      supabase.from('plants').select('*,categories(name_th,hue)').eq('owner_id', ownerId),
-      supabase.from('movements').select('*,plants(name,sku)').eq('owner_id', ownerId).order('created_at', { ascending: false }).limit(10),
+      supabase.from('plants').select('*,categories(name_th,hue)').eq('store_id', ownerId),
+      supabase.from('movements').select('*,plants(name,sku)').eq('store_id', ownerId).order('created_at', { ascending: false }).limit(10),
     ])
     setPlants(p ?? [])
     setMoves(m ?? [])

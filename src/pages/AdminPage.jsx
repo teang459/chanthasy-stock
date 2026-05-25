@@ -14,7 +14,7 @@ const ROLES = [
 ]
 
 export default function AdminPage() {
-  const { profile, setAdminViewingOwnerId } = useAuth()
+  const { profile, isSuperAdmin, setCurrentStoreId } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
   const [shops, setShops] = useState([])
@@ -39,8 +39,8 @@ export default function AdminPage() {
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
-    if (profile?.role === 'admin') load()
-  }, [profile])
+    if (isSuperAdmin) load()
+  }, [isSuperAdmin])
 
   async function load() {
     setLoading(true)
@@ -81,7 +81,7 @@ export default function AdminPage() {
   }
 
   function viewShop(shopId) {
-    setAdminViewingOwnerId(shopId)
+    setCurrentStoreId(shopId)
     navigate('/stock')
   }
 
@@ -134,7 +134,7 @@ export default function AdminPage() {
   }
 
   if (!profile) return <div className="page-center"><Spinner size={32} /></div>
-  if (profile.role !== 'admin') return <Navigate to="/" replace />
+  if (!isSuperAdmin) return <Navigate to="/" replace />
 
   return (
     <div className="page">

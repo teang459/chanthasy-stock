@@ -24,9 +24,9 @@ const HUES = [
 
 export default function CategoriesPage() {
   const { toast } = useToast()
-  const { user, ownerId, profile } = useAuth()
-  const canWrite  = !profile?.manager_id || ['admin', 'staff'].includes(profile?.role)
-  const canDelete = !profile?.manager_id || profile?.role === 'admin'
+  const { user, ownerId, perms } = useAuth()
+  const canWrite  = perms.perm_manage_plants
+  const canDelete = perms.perm_manage_plants
   const [cats, setCats]         = useState([])
   const [counts, setCounts]     = useState({})
   const [loading, setLoading]   = useState(true)
@@ -42,8 +42,8 @@ export default function CategoriesPage() {
   async function load() {
     if (!ownerId) return
     const [{ data: c }, { data: p }] = await Promise.all([
-      supabase.from('categories').select('*').eq('owner_id', ownerId).order('name_th'),
-      supabase.from('plants').select('category_id').eq('owner_id', ownerId),
+      supabase.from('categories').select('*').eq('store_id', ownerId).order('name_th'),
+      supabase.from('plants').select('category_id').eq('store_id', ownerId),
     ])
     setCats(c ?? [])
     const cnt = {}
@@ -75,7 +75,7 @@ export default function CategoriesPage() {
         if (error) throw error
         toast.success('แก้ไขหมวดหมู่สำเร็จ')
       } else {
-        const { error } = await supabase.from('categories').insert({ ...payload, owner_id: ownerId })
+        const { error } = await supabase.from('categories').insert({ ...payload, owner_id: ownerId, store_id: ownerId })
         if (error) throw error
         toast.success('เพิ่มหมวดหมู่สำเร็จ')
       }

@@ -38,7 +38,7 @@ async function fetchAllMovements(ownerId, range) {
     let q = supabase
       .from('movements')
       .select('*, plants(name,sku)')
-      .eq('owner_id', ownerId)
+      .eq('store_id', ownerId)
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1)
     if (range !== 'all') q = q.gte('created_at', isoDaysAgo(Number(range)))
@@ -68,7 +68,7 @@ export default function ReportsPage() {
     if (!ownerId) return
     setLoading(true)
     try {
-      const plantsQ = supabase.from('plants').select('*, categories(name_th,hue)').eq('owner_id', ownerId)
+      const plantsQ = supabase.from('plants').select('*, categories(name_th,hue)').eq('store_id', ownerId)
       const [{ data: p, error: pErr }, movesResult] = await Promise.all([
         plantsQ,
         fetchAllMovements(ownerId, range),

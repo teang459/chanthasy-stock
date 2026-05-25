@@ -25,9 +25,11 @@ const BulkImport     = lazy(() => import('../components/BulkImport'))
 
 export default function StockPage() {
   const { toast } = useToast()
-  const { user, ownerId, profile } = useAuth()
-  const canWrite  = !profile?.manager_id || ['admin', 'staff'].includes(profile?.role)
-  const canDelete = !profile?.manager_id || profile?.role === 'admin'
+  const { user, ownerId, perms } = useAuth()
+  // perm_manage_plants gates plant CRUD; adjust/sell/receive flags gate the stock-adjust modal.
+  const canWrite  = perms.perm_manage_plants
+  const canDelete = perms.perm_manage_plants
+  const canAdjust = perms.perm_sell || perms.perm_receive || perms.perm_adjust
   const { symbol } = useCurrency()
   const location = useLocation()
 
@@ -60,7 +62,7 @@ export default function StockPage() {
     if (!ownerId) return
     load()
     const ch = supabase.channel(`stock-page-${ownerId}`)
-      .on('postgres_changes', { event:'*', schema:'public', table:'plants', filter: `owner_id=eq.${ownerId}` }, loadPlants)
+      .on('postgres_changes', { event:'*', schema:'public', table:'plants', filter: `store_id=eq.${ownerId}` }, loadPlants)
       .subscribe()
     return () => supabase.removeChannel(ch)
   }, [ownerId])
@@ -76,19 +78,19 @@ export default function StockPage() {
     const { data, error } = await supabase
       .from('plants')
       .select('*, categories(id,name_th,hue,code), suppliers(id,name,code)')
-      .eq('owner_id', ownerId)
+      .eq('store_id', ownerId)
       .order('name')
     if (error) { toast.error(`โหลดข้อมูลไม่สำเร็จ: ${userMessage(error)}`); return }
     setPlants(data ?? [])
   }
   async function loadCats() {
     if (!ownerId) return
-    const { data } = await supabase.from('categories').select('*').eq('owner_id', ownerId).order('name_th')
+    const { data } = await supabase.from('categories').select('*').eq('store_id', ownerId).order('name_th')
     setCats(data ?? [])
   }
   async function loadSups() {
     if (!ownerId) return
-    const { data } = await supabase.from('suppliers').select('*').eq('owner_id', ownerId).order('name')
+    const { data } = await supabase.from('suppliers').select('*').eq('store_id', ownerId).order('name')
     setSups(data ?? [])
   }
 
@@ -175,7 +177,7 @@ export default function StockPage() {
         if (error) throw error
         toast.success('แก้ไขข้อมูลสำเร็จ')
       } else {
-        const { error } = await supabase.from('plants').insert({ ...payload, owner_id: ownerId })
+        const { error } = await supabase.from('plants').insert({ ...payload, owner_id: ownerId, store_id: ownerId })
         if (error) throw error
         toast.success('เพิ่มต้นไม้สำเร็จ')
       }
@@ -362,7 +364,7 @@ export default function StockPage() {
                   <td><StatusBadge status={statusOf(p)} /></td>
                   <td>
                     <div className="row-actions">
-                      {canWrite && <button className="icon-btn" title="ปรับสต็อก" onClick={() => { setAdjItem(p); setAdjForm({ type:'in',qty:1,note:'' }) }}><I.Adjust size={13} /></button>}
+                      {canAdjust && <button className="icon-btn" title="ปรับสต็อก" onClick={() => { setAdjItem(p); setAdjForm({ type:'in',qty:1,note:'' }) }}><I.Adjust size={13} /></button>}
                       {canWrite && <button className="icon-btn" title="แก้ไข" onClick={() => openEdit(p)}><I.Edit size={13} /></button>}
                       {canDelete && <button className="icon-btn danger" title="ลบ" onClick={() => setDelItem(p)}><I.Trash size={13} /></button>}
                     </div>

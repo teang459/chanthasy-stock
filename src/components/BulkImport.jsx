@@ -135,6 +135,7 @@ export default function BulkImport({ onClose, onDone, categories = [], suppliers
       seen.add(sku.toLowerCase())
       const row = {
         owner_id: ownerId,
+        store_id: ownerId,
         sku: r.data.sku,
         name: r.data.name,
         name_sci: r.data.name_sci ?? null,

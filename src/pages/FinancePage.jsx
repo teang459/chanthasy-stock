@@ -52,11 +52,11 @@ function daysAgoISO(days) {
 const EMPTY = { type: 'income', category: 'sale', title: '', amount: '', date: today(), note: '' }
 
 export default function FinancePage() {
-  const { ownerId, profile } = useAuth()
+  const { ownerId, perms } = useAuth()
   const { toast } = useToast()
   const { symbol } = useCurrency()
-  const canWrite  = !profile?.manager_id || ['admin', 'staff'].includes(profile?.role)
-  const canDelete = !profile?.manager_id || profile?.role === 'admin'
+  const canWrite  = perms.perm_finance
+  const canDelete = perms.perm_finance
 
   const [entries, setEntries]   = useState([])
   const [movements, setMovements] = useState([])
@@ -88,10 +88,10 @@ export default function FinancePage() {
 
     ;(async () => {
       try {
-        const eq = supabase.from('finance_entries').select('*').eq('owner_id', ownerId).order('date', { ascending: false }).limit(1000)
+        const eq = supabase.from('finance_entries').select('*').eq('store_id', ownerId).order('date', { ascending: false }).limit(1000)
         const mq = supabase.from('movements')
           .select('id, type, qty, note, created_at, plants(id, name, sku, price, cost)')
-          .eq('owner_id', ownerId)
+          .eq('store_id', ownerId)
           .in('type', ['in', 'out', 'new'])
           .order('created_at', { ascending: false })
           .limit(2000)
@@ -125,7 +125,7 @@ export default function FinancePage() {
     let ch
     try {
       ch = supabase.channel(`finance-${ownerId}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'finance_entries', filter: `owner_id=eq.${ownerId}` }, () => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'finance_entries', filter: `store_id=eq.${ownerId}` }, () => {
           setReloadKey(k => k + 1)
         })
         .subscribe()
@@ -276,7 +276,7 @@ export default function FinancePage() {
         if (error) throw error
         toast.success('แก้ไขรายการสำเร็จ')
       } else {
-        const { error } = await supabase.from('finance_entries').insert({ ...payload, owner_id: ownerId })
+        const { error } = await supabase.from('finance_entries').insert({ ...payload, owner_id: ownerId, store_id: ownerId })
         if (error) throw error
         toast.success(form.type === 'income' ? 'บันทึกรายรับสำเร็จ' : 'บันทึกรายจ่ายสำเร็จ')
       }

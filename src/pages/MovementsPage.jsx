@@ -28,7 +28,7 @@ export default function MovementsPage() {
     if (!ownerId) return
     load()
     const ch = supabase.channel(`movements-${ownerId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'movements', filter: `owner_id=eq.${ownerId}` }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'movements', filter: `store_id=eq.${ownerId}` }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
   }, [ownerId])
@@ -38,7 +38,7 @@ export default function MovementsPage() {
     const { data, error } = await supabase
       .from('movements')
       .select('*, plants(id,name,sku)')
-      .eq('owner_id', ownerId)
+      .eq('store_id', ownerId)
       .order('created_at', { ascending: false })
       .limit(500)
     if (error) { toast.error(`โหลดไม่สำเร็จ: ${userMessage(error)}`); setLoading(false); return }
