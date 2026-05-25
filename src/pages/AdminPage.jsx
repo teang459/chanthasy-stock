@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { userMessage } from '../lib/errors'
+import { suggestStoreCode } from '../lib/admin'
 import Spinner from '../components/Spinner'
 import Modal from '../components/Modal'
 import Field from '../components/Field'
@@ -195,7 +196,7 @@ export default function AdminPage() {
       {showCreate && (
         <StoreFormModal
           title="เพิ่มสาขาใหม่"
-          initial={{ ...EMPTY_STORE, code: suggestCode(stores) }}
+          initial={{ ...EMPTY_STORE, code: suggestStoreCode(stores) }}
           submitLabel="สร้างสาขา"
           onClose={() => setShowCreate(false)}
           onSubmit={async (payload) => {
@@ -289,12 +290,6 @@ export default function AdminPage() {
       )}
     </div>
   )
-}
-
-function suggestCode(stores) {
-  const nums = stores.map(s => Number((s.code || '').replace(/\D/g, ''))).filter(n => Number.isFinite(n))
-  const next = (nums.length ? Math.max(...nums) : 0) + 1
-  return 'STR' + String(next).padStart(3, '0')
 }
 
 function MembersPanel({ store, members, emails, onAdd, onEdit, onRemove, isSelf }) {
