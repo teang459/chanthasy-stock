@@ -2,8 +2,13 @@
 -- Chanthasy Stock — Supabase Schema (Production)
 --
 -- This file is the CONSOLIDATED source of truth for a fresh deploy.
--- It bundles migrations 001–004 so running it on an empty project
+-- It bundles migrations 001–006 so running it on an empty project
 -- produces the same state as the current production database.
+--
+-- Migration 006 (Phase A) adds the multi-store scaffolding additively:
+-- stores, store_members, store_id columns (nullable), and the new
+-- helper functions. The legacy owner_id-based RLS still drives access
+-- on the data tables until Phase C cutover (migration 008).
 --
 -- For an existing project, prefer running the individual files in
 -- supabase/migrations/ in order.
@@ -114,6 +119,64 @@ CREATE TABLE IF NOT EXISTS finance_entries (
 CREATE INDEX IF NOT EXISTS finance_entries_owner_date_idx ON finance_entries(owner_id, date DESC);
 
 -- ====================================================
+-- Phase A multi-store scaffolding (migration 006)
+-- store_id columns are nullable until Phase C cutover (008).
+-- ====================================================
+
+CREATE TABLE IF NOT EXISTS stores (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code          TEXT UNIQUE NOT NULL,
+  name          TEXT NOT NULL,
+  address       TEXT,
+  phone         TEXT,
+  tax_id        TEXT,
+  vat_rate      NUMERIC(5,2) NOT NULL DEFAULT 0 CHECK (vat_rate BETWEEN 0 AND 100),
+  vat_inclusive BOOLEAN      NOT NULL DEFAULT true,
+  currency      TEXT         NOT NULL DEFAULT 'THB' CHECK (currency IN ('THB','LAK')),
+  timezone      TEXT         NOT NULL DEFAULT 'Asia/Bangkok',
+  active        BOOLEAN      NOT NULL DEFAULT true,
+  created_by    UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS store_members (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id           UUID NOT NULL REFERENCES stores(id)     ON DELETE CASCADE,
+  user_id            UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role               TEXT NOT NULL CHECK (role IN ('store_admin','staff','viewer')),
+  perm_sell          BOOLEAN NOT NULL DEFAULT true,
+  perm_receive       BOOLEAN NOT NULL DEFAULT true,
+  perm_adjust        BOOLEAN NOT NULL DEFAULT false,
+  perm_manage_plants BOOLEAN NOT NULL DEFAULT false,
+  perm_view_reports  BOOLEAN NOT NULL DEFAULT false,
+  perm_finance       BOOLEAN NOT NULL DEFAULT false,
+  perm_settle        BOOLEAN NOT NULL DEFAULT false,
+  created_at         TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(store_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS store_members_user_idx  ON store_members(user_id);
+CREATE INDEX IF NOT EXISTS store_members_store_idx ON store_members(store_id);
+
+-- store_id columns on existing data tables
+ALTER TABLE plants          ADD COLUMN IF NOT EXISTS store_id UUID REFERENCES stores(id) ON DELETE CASCADE;
+ALTER TABLE movements       ADD COLUMN IF NOT EXISTS store_id UUID REFERENCES stores(id) ON DELETE CASCADE;
+ALTER TABLE categories      ADD COLUMN IF NOT EXISTS store_id UUID REFERENCES stores(id) ON DELETE CASCADE;
+ALTER TABLE suppliers       ADD COLUMN IF NOT EXISTS store_id UUID REFERENCES stores(id) ON DELETE CASCADE;
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS store_id UUID REFERENCES stores(id) ON DELETE CASCADE;
+ALTER TABLE finance_entries ADD COLUMN IF NOT EXISTS store_id UUID REFERENCES stores(id) ON DELETE CASCADE;
+
+CREATE INDEX IF NOT EXISTS plants_store_idx          ON plants(store_id);
+CREATE INDEX IF NOT EXISTS movements_store_idx       ON movements(store_id);
+CREATE INDEX IF NOT EXISTS categories_store_idx      ON categories(store_id);
+CREATE INDEX IF NOT EXISTS suppliers_store_idx       ON suppliers(store_id);
+CREATE INDEX IF NOT EXISTS calendar_events_store_idx ON calendar_events(store_id);
+CREATE INDEX IF NOT EXISTS finance_entries_store_idx ON finance_entries(store_id);
+
+ALTER TABLE movements ADD COLUMN IF NOT EXISTS payment_method TEXT
+  CHECK (payment_method IN ('cash','transfer','credit','other'));
+
+-- ====================================================
 -- Helper functions (SECURITY DEFINER bypasses RLS internally)
 -- ====================================================
 
@@ -143,6 +206,51 @@ RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS
   SELECT EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin' AND manager_id IS NULL)
 $func$;
 
+-- Phase A multi-store helpers (migration 006).
+CREATE OR REPLACE FUNCTION public.my_store_ids()
+RETURNS UUID[] LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $func$
+  SELECT COALESCE(array_agg(store_id), ARRAY[]::UUID[])
+  FROM store_members WHERE user_id = auth.uid()
+$func$;
+
+CREATE OR REPLACE FUNCTION public.is_super_admin()
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $func$
+  SELECT EXISTS (
+    SELECT 1 FROM profiles
+     WHERE id = auth.uid()
+       AND (role = 'super_admin'
+            OR (role = 'admin' AND manager_id IS NULL))
+  )
+$func$;
+
+CREATE OR REPLACE FUNCTION public.is_store_admin(p_store UUID)
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $func$
+  SELECT EXISTS (
+    SELECT 1 FROM store_members
+     WHERE user_id = auth.uid() AND store_id = p_store AND role = 'store_admin'
+  )
+$func$;
+
+CREATE OR REPLACE FUNCTION public.has_perm(p_store UUID, p_perm TEXT)
+RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER STABLE SET search_path = public AS $func$
+DECLARE v BOOLEAN; col TEXT;
+BEGIN
+  IF is_super_admin() THEN RETURN TRUE; END IF;
+  col := 'perm_' || p_perm;
+  IF col NOT IN ('perm_sell','perm_receive','perm_adjust','perm_manage_plants',
+                 'perm_view_reports','perm_finance','perm_settle') THEN
+    RAISE EXCEPTION 'Unknown permission: %', p_perm USING ERRCODE = '22023';
+  END IF;
+  EXECUTE format('SELECT %I FROM store_members WHERE user_id = $1 AND store_id = $2', col)
+    INTO v USING auth.uid(), p_store;
+  RETURN COALESCE(v, FALSE);
+END $func$;
+
+GRANT EXECUTE ON FUNCTION public.my_store_ids()       TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_super_admin()     TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_store_admin(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.has_perm(UUID, TEXT) TO authenticated;
+
 -- ====================================================
 -- Row Level Security
 -- ====================================================
@@ -154,6 +262,8 @@ ALTER TABLE plants           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE movements        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE calendar_events  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE finance_entries  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stores           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE store_members    ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: self_only + admin_bypass
 DROP POLICY IF EXISTS profiles_self  ON profiles;
@@ -234,6 +344,22 @@ CREATE POLICY finance_insert ON finance_entries FOR INSERT WITH CHECK (owner_id 
 CREATE POLICY finance_update ON finance_entries FOR UPDATE USING (owner_id = effective_owner_id() AND can_write())  WITH CHECK (owner_id = effective_owner_id() AND can_write());
 CREATE POLICY finance_delete ON finance_entries FOR DELETE USING (owner_id = effective_owner_id() AND can_delete());
 CREATE POLICY finance_admin  ON finance_entries FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+
+-- Stores + store_members (Phase A; existing tables still use owner_id model)
+DROP POLICY IF EXISTS stores_select      ON stores;
+DROP POLICY IF EXISTS stores_super_admin ON stores;
+CREATE POLICY stores_select ON stores FOR SELECT
+  USING (is_super_admin() OR id = ANY(my_store_ids()));
+CREATE POLICY stores_super_admin ON stores FOR ALL
+  USING (is_super_admin()) WITH CHECK (is_super_admin());
+
+DROP POLICY IF EXISTS store_members_select ON store_members;
+DROP POLICY IF EXISTS store_members_manage ON store_members;
+CREATE POLICY store_members_select ON store_members FOR SELECT
+  USING (is_super_admin() OR user_id = auth.uid() OR is_store_admin(store_id));
+CREATE POLICY store_members_manage ON store_members FOR ALL
+  USING      (is_super_admin() OR is_store_admin(store_id))
+  WITH CHECK (is_super_admin() OR is_store_admin(store_id));
 
 -- ====================================================
 -- Trigger: create profile when user signs up (migration 003)
