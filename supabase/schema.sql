@@ -14,7 +14,16 @@
 --   - 011 — stores_admin_update policy (store_admin edits own store)
 --   - 012 — legacy owner_id / manager_id / shop_name / VAT / currency
 --           columns dropped; profiles is now just (id, name, role,
---           initials, updated_at)                                   ← applied here
+--           initials, updated_at)
+--   - 013 — customers table + movements.customer_id + adjust_stock
+--           gains p_customer for sale → customer linkage
+--   - 014 — purchase_orders + purchase_order_lines + receive_po_line
+--           RPC. Plus a side fix: dropped plants_log_movement trigger
+--           and log_stock_movement function (was double-logging every
+--           adjust_stock call post-Phase C).
+--   - 015 — one-off data cleanup: removed the 4 phantom movements the
+--           dropped trigger had already produced; recomputed the
+--           affected settlement snapshot with an audit note.       ← applied here
 -- ================================================================
 
 -- ====================================================
@@ -113,6 +122,7 @@ CREATE TABLE IF NOT EXISTS movements (
   id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   store_id       UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
   plant_id       UUID REFERENCES plants(id) ON DELETE CASCADE,
+  customer_id    UUID,  -- FK added after customers table is declared
   type           TEXT NOT NULL CHECK (type IN ('in','out','adjust','new','delete','rename')),
   qty            INTEGER NOT NULL,
   note           TEXT,
@@ -405,43 +415,23 @@ CREATE TRIGGER plants_log_event
   AFTER INSERT OR UPDATE OR DELETE ON plants
   FOR EACH ROW EXECUTE FUNCTION public.log_plant_event();
 
--- Stock change audit (fires on UPDATE only when stock changes)
-CREATE OR REPLACE FUNCTION public.log_stock_movement()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $logmove$
-DECLARE
-  v_type  text;
-  v_note  text;
-  v_delta integer;
-BEGIN
-  IF NEW.stock IS DISTINCT FROM OLD.stock THEN
-    v_delta := NEW.stock - OLD.stock;
-    v_type  := COALESCE(
-      nullif(current_setting('app.movement_type', true), ''),
-      CASE WHEN v_delta > 0 THEN 'in' WHEN v_delta < 0 THEN 'out' ELSE 'adjust' END
-    );
-    v_note  := nullif(current_setting('app.movement_note', true), '');
-    INSERT INTO movements (plant_id, type, qty, note, created_by, store_id)
-    VALUES (NEW.id, v_type, v_delta, v_note, auth.uid(), NEW.store_id);
-  END IF;
-  RETURN NEW;
-END;
-$logmove$;
-
-DROP TRIGGER IF EXISTS plants_log_movement ON plants;
-CREATE TRIGGER plants_log_movement
-  AFTER UPDATE ON plants
-  FOR EACH ROW EXECUTE FUNCTION public.log_stock_movement();
+-- (removed in migration 014: log_stock_movement / plants_log_movement
+--  trigger was double-logging adjust_stock movements after Phase C.
+--  adjust_stock is now the sole writer of stock change movements.)
 
 -- ====================================================
 -- RPCs
 -- ====================================================
 
 DROP FUNCTION IF EXISTS public.adjust_stock(UUID, TEXT, INTEGER, TEXT);
+DROP FUNCTION IF EXISTS public.adjust_stock(UUID, TEXT, INTEGER, TEXT, TEXT);
 CREATE OR REPLACE FUNCTION public.adjust_stock(
   p_plant_id UUID,
   p_type     TEXT,
   p_qty      INTEGER,
-  p_note     TEXT
+  p_note     TEXT,
+  p_payment  TEXT DEFAULT NULL,
+  p_customer UUID DEFAULT NULL
 )
 RETURNS VOID
 LANGUAGE plpgsql
@@ -453,6 +443,8 @@ DECLARE
   v_new_stock  INTEGER;
   v_qty_signed INTEGER;
   v_perm       TEXT;
+  v_payment    TEXT;
+  v_customer   UUID := NULL;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '42501';
@@ -477,6 +469,20 @@ BEGIN
     RAISE EXCEPTION 'Not permitted to %', v_perm USING ERRCODE = '42501';
   END IF;
 
+  IF p_type = 'out' THEN
+    v_payment := COALESCE(NULLIF(TRIM(p_payment), ''), 'cash');
+    IF v_payment NOT IN ('cash','transfer','credit','other') THEN
+      RAISE EXCEPTION 'Invalid payment_method: %', v_payment USING ERRCODE = '22023';
+    END IF;
+    IF p_customer IS NOT NULL THEN
+      PERFORM 1 FROM customers WHERE id = p_customer AND store_id = v_plant.store_id;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'Customer not found in this store' USING ERRCODE = '42501';
+      END IF;
+      v_customer := p_customer;
+    END IF;
+  END IF;
+
   IF p_type = 'in' THEN
     IF p_qty <= 0 THEN RAISE EXCEPTION 'qty must be > 0 for in' USING ERRCODE = '22023'; END IF;
     v_new_stock  := v_plant.stock + p_qty;
@@ -494,11 +500,11 @@ BEGIN
 
   UPDATE plants SET stock = v_new_stock, updated_at = NOW() WHERE id = p_plant_id;
 
-  INSERT INTO movements (store_id, plant_id, type, qty, note, created_by)
-  VALUES (v_plant.store_id, p_plant_id, p_type, v_qty_signed, p_note, auth.uid());
+  INSERT INTO movements (store_id, plant_id, type, qty, note, created_by, payment_method, customer_id)
+  VALUES (v_plant.store_id, p_plant_id, p_type, v_qty_signed, p_note, auth.uid(), v_payment, v_customer);
 END;
 $adjust$;
-GRANT EXECUTE ON FUNCTION public.adjust_stock(UUID, TEXT, INTEGER, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.adjust_stock(UUID, TEXT, INTEGER, TEXT, TEXT, UUID) TO authenticated;
 
 DROP FUNCTION IF EXISTS public.get_all_shops_for_admin();
 CREATE OR REPLACE FUNCTION public.get_all_shops_for_admin()
@@ -655,6 +661,138 @@ CREATE TRIGGER finance_attach_settlement BEFORE INSERT ON finance_entries
 
 -- Settlement RPCs (open_day, settle_day, reopen_settlement)
 -- See supabase/migrations/009_daily_settlement.sql for the full bodies.
+
+-- ====================================================
+-- Customers (migration 013)
+-- ====================================================
+CREATE TABLE IF NOT EXISTS customers (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id   UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  code       TEXT,
+  name       TEXT NOT NULL,
+  phone      TEXT,
+  email      TEXT,
+  line_id    TEXT,
+  address    TEXT,
+  tax_id     TEXT,
+  note       TEXT,
+  active     BOOLEAN NOT NULL DEFAULT true,
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS customers_store_idx      ON customers(store_id);
+CREATE INDEX IF NOT EXISTS customers_store_name_idx ON customers(store_id, name);
+CREATE UNIQUE INDEX IF NOT EXISTS customers_code_per_store
+  ON customers(store_id, code) WHERE code IS NOT NULL AND code <> '';
+
+DROP TRIGGER IF EXISTS customers_updated_at ON customers;
+CREATE TRIGGER customers_updated_at BEFORE UPDATE ON customers
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+-- Wire movements.customer_id now that customers exists
+ALTER TABLE movements
+  DROP CONSTRAINT IF EXISTS movements_customer_id_fkey,
+  ADD CONSTRAINT movements_customer_id_fkey
+    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS movements_customer_idx ON movements(customer_id);
+
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS customers_select ON customers;
+DROP POLICY IF EXISTS customers_insert ON customers;
+DROP POLICY IF EXISTS customers_update ON customers;
+DROP POLICY IF EXISTS customers_delete ON customers;
+CREATE POLICY customers_select ON customers FOR SELECT
+  USING (is_super_admin() OR store_id = ANY(my_store_ids()));
+CREATE POLICY customers_insert ON customers FOR INSERT
+  WITH CHECK (is_super_admin() OR store_id = ANY(my_store_ids()));
+CREATE POLICY customers_update ON customers FOR UPDATE
+  USING      (is_super_admin() OR store_id = ANY(my_store_ids()))
+  WITH CHECK (is_super_admin() OR store_id = ANY(my_store_ids()));
+CREATE POLICY customers_delete ON customers FOR DELETE
+  USING (is_super_admin() OR is_store_admin(store_id));
+
+-- ====================================================
+-- Purchase Orders (migration 014)
+-- ====================================================
+CREATE TABLE IF NOT EXISTS purchase_orders (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id      UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  supplier_id   UUID REFERENCES suppliers(id) ON DELETE SET NULL,
+  po_number     TEXT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'draft'
+                  CHECK (status IN ('draft','submitted','partial','received','cancelled')),
+  order_date    DATE NOT NULL DEFAULT CURRENT_DATE,
+  expected_date DATE,
+  received_date DATE,
+  total_amount  NUMERIC(12,2),
+  note          TEXT,
+  created_by    UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(store_id, po_number)
+);
+CREATE INDEX IF NOT EXISTS purchase_orders_store_idx    ON purchase_orders(store_id, order_date DESC);
+CREATE INDEX IF NOT EXISTS purchase_orders_supplier_idx ON purchase_orders(supplier_id);
+CREATE INDEX IF NOT EXISTS purchase_orders_status_idx   ON purchase_orders(store_id, status);
+
+DROP TRIGGER IF EXISTS purchase_orders_updated_at ON purchase_orders;
+CREATE TRIGGER purchase_orders_updated_at BEFORE UPDATE ON purchase_orders
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+CREATE TABLE IF NOT EXISTS purchase_order_lines (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  po_id         UUID NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+  plant_id      UUID REFERENCES plants(id) ON DELETE SET NULL,
+  plant_name    TEXT NOT NULL,
+  plant_sku     TEXT,
+  qty_ordered   INTEGER NOT NULL CHECK (qty_ordered > 0),
+  qty_received  INTEGER NOT NULL DEFAULT 0 CHECK (qty_received >= 0),
+  unit_cost     NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (unit_cost >= 0),
+  note          TEXT,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS po_lines_po_idx    ON purchase_order_lines(po_id);
+CREATE INDEX IF NOT EXISTS po_lines_plant_idx ON purchase_order_lines(plant_id);
+
+ALTER TABLE purchase_orders      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE purchase_order_lines ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS po_select ON purchase_orders;
+DROP POLICY IF EXISTS po_insert ON purchase_orders;
+DROP POLICY IF EXISTS po_update ON purchase_orders;
+DROP POLICY IF EXISTS po_delete ON purchase_orders;
+CREATE POLICY po_select ON purchase_orders FOR SELECT
+  USING (is_super_admin() OR store_id = ANY(my_store_ids()));
+CREATE POLICY po_insert ON purchase_orders FOR INSERT
+  WITH CHECK (is_super_admin() OR has_perm(store_id, 'receive'));
+CREATE POLICY po_update ON purchase_orders FOR UPDATE
+  USING      (is_super_admin() OR has_perm(store_id, 'receive'))
+  WITH CHECK (is_super_admin() OR has_perm(store_id, 'receive'));
+CREATE POLICY po_delete ON purchase_orders FOR DELETE
+  USING (is_super_admin() OR is_store_admin(store_id));
+
+DROP POLICY IF EXISTS po_lines_select ON purchase_order_lines;
+DROP POLICY IF EXISTS po_lines_insert ON purchase_order_lines;
+DROP POLICY IF EXISTS po_lines_update ON purchase_order_lines;
+DROP POLICY IF EXISTS po_lines_delete ON purchase_order_lines;
+CREATE POLICY po_lines_select ON purchase_order_lines FOR SELECT
+  USING (is_super_admin()
+         OR EXISTS (SELECT 1 FROM purchase_orders po WHERE po.id = po_id AND po.store_id = ANY(my_store_ids())));
+CREATE POLICY po_lines_insert ON purchase_order_lines FOR INSERT
+  WITH CHECK (is_super_admin()
+              OR EXISTS (SELECT 1 FROM purchase_orders po WHERE po.id = po_id AND has_perm(po.store_id, 'receive')));
+CREATE POLICY po_lines_update ON purchase_order_lines FOR UPDATE
+  USING      (is_super_admin()
+              OR EXISTS (SELECT 1 FROM purchase_orders po WHERE po.id = po_id AND has_perm(po.store_id, 'receive')))
+  WITH CHECK (is_super_admin()
+              OR EXISTS (SELECT 1 FROM purchase_orders po WHERE po.id = po_id AND has_perm(po.store_id, 'receive')));
+CREATE POLICY po_lines_delete ON purchase_order_lines FOR DELETE
+  USING (is_super_admin()
+         OR EXISTS (SELECT 1 FROM purchase_orders po WHERE po.id = po_id AND is_store_admin(po.store_id)));
+
+-- PO helper RPCs: next_po_number, receive_po_line.
+-- See supabase/migrations/014_purchase_orders.sql for full bodies.
 
 -- ====================================================
 -- Storage bucket: plant-images
