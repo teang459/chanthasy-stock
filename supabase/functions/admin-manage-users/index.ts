@@ -26,7 +26,6 @@ Deno.serve(async (req: Request) => {
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) return json({ error: 'Unauthorized' }, 401)
 
-  // Verify the caller is an admin using their own JWT
   const callerClient = createClient(SUPABASE_URL, ANON_KEY, {
     global: { headers: { Authorization: authHeader } },
     auth: { autoRefreshToken: false, persistSession: false },
@@ -38,20 +37,28 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Unauthorized' }, 401)
   }
 
+  // Post Phase C: super_admin is the only role with cross-tenant write powers.
   const { data: profile, error: profileErr } = await callerClient
     .from('profiles')
-    .select('role, manager_id')
+    .select('role')
     .eq('id', caller.id)
     .single()
 
   if (profileErr) console.error('profile fetch error:', profileErr.message)
 
-  if (!profile || profile.role !== 'admin' || profile.manager_id !== null) {
+  if (!profile || profile.role !== 'super_admin') {
     console.error('Forbidden: profile=', JSON.stringify(profile))
     return json({ error: 'Forbidden' }, 403)
   }
 
-  let body: { action: string; email?: string; password?: string; name?: string; shop_name?: string; role?: string; userId?: string }
+  type Body = {
+    action: string
+    email?: string
+    password?: string
+    name?: string
+    userId?: string
+  }
+  let body: Body
   try {
     body = await req.json()
   } catch {
@@ -62,7 +69,7 @@ Deno.serve(async (req: Request) => {
 
   // ── Create user ────────────────────────────────────────────────
   if (action === 'create') {
-    const { email, password, name, shop_name, role = 'staff' } = body
+    const { email, password, name } = body
     if (!email || !password) return json({ error: 'email and password required' }, 400)
 
     const { data, error } = await serviceClient.auth.admin.createUser({
@@ -73,19 +80,14 @@ Deno.serve(async (req: Request) => {
     })
     if (error) return json({ error: error.message }, 400)
 
-    // Trigger creates the profile; update with admin-supplied fields
-    if (data.user) {
-      const initials = name
-        ? name.trim().slice(0, 2).toUpperCase()
-        : email.slice(0, 2).toUpperCase()
-
-      await serviceClient.from('profiles').upsert({
-        id: data.user.id,
-        name: name?.trim() || email.split('@')[0],
-        role,
-        shop_name: shop_name?.trim() || null,
+    // The handle_new_user trigger creates the profile with role='member' by
+    // default. We just patch the displayed name / initials when provided.
+    if (data.user && name?.trim()) {
+      const initials = name.trim().slice(0, 2).toUpperCase()
+      await serviceClient.from('profiles').update({
+        name: name.trim(),
         initials,
-      })
+      }).eq('id', data.user.id)
     }
 
     return json({ user: data.user })
@@ -97,7 +99,9 @@ Deno.serve(async (req: Request) => {
     if (!userId) return json({ error: 'userId required' }, 400)
     if (userId === caller.id) return json({ error: 'Cannot delete your own account' }, 400)
 
-    // Best-effort cleanup of plant images so storage doesn't accumulate orphans
+    // Best-effort cleanup of plant images stored under the user's id folder.
+    // (After the multi-store cutover stores own folders are keyed by store id;
+    // legacy users still have a folder named after their auth uid.)
     try {
       const { data: files } = await serviceClient.storage.from('plant-images').list(userId, { limit: 1000 })
       if (files && files.length > 0) {
@@ -108,8 +112,8 @@ Deno.serve(async (req: Request) => {
       console.error('storage cleanup (non-fatal):', (e as Error).message)
     }
 
-    // ON DELETE CASCADE handles plants/movements/profile/etc.
-    // log_plant_event trigger skips logging when owner is being cascade-deleted (migration 003)
+    // ON DELETE CASCADE clears profile, store_members, and (for legacy owner_id
+    // rows) plants/movements/etc. store rows are kept (created_by → SET NULL).
     const { error } = await serviceClient.auth.admin.deleteUser(userId)
     if (error) {
       console.error('deleteUser error:', error.message)
