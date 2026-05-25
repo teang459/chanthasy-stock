@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react'
 import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
@@ -18,6 +18,10 @@ import Field from '../components/Field'
 import * as I from '../components/Icons'
 
 const EMPTY = { sku:'',name:'',name_sci:'',category_id:'',supplier_id:'',stock:0,min_stock:5,price:0,cost:'',note:'',image_url:'' }
+
+// Lazy-load so html5-qrcode is only fetched when a user opens the scanner.
+const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
+const BulkImport     = lazy(() => import('../components/BulkImport'))
 
 export default function StockPage() {
   const { toast } = useToast()
@@ -49,6 +53,8 @@ export default function StockPage() {
   const [page, setPage] = useState(0)
   const PAGE_SIZE = 50
   const [imgUploading, setImgUploading] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
+  const [showImport, setShowImport]   = useState(false)
 
   useEffect(() => {
     if (!ownerId) return
@@ -289,6 +295,7 @@ export default function StockPage() {
         </div>
         <div className="page-actions">
           <button className="btn btn-ghost" onClick={handleExport}><I.Download size={13} /> ส่งออก</button>
+          {canWrite && <button className="btn btn-ghost" onClick={() => setShowImport(true)}><I.Upload size={13} /> นำเข้า CSV</button>}
           {canWrite && <button className="btn btn-primary" onClick={openAdd}><I.Plus size={13} /> เพิ่มต้นไม้</button>}
         </div>
       </div>
@@ -299,6 +306,15 @@ export default function StockPage() {
           <input placeholder="ค้นหา SKU, ชื่อ…" value={search} onChange={e => setSearch(e.target.value)} />
           {search && <button className="search-clear" onClick={() => setSearch('')}><I.X size={12} /></button>}
         </div>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={() => setShowScanner(true)}
+          aria-label="สแกน Barcode"
+          title="สแกน Barcode / QR"
+        >
+          <I.QrCode size={14} /> สแกน
+        </button>
         <select value={catFilter} onChange={e => setCatFilter(e.target.value)}>
           <option value="">ทุกหมวดหมู่</option>
           {cats.map(c => <option key={c.id} value={c.id}>{c.name_th}</option>)}
@@ -472,6 +488,37 @@ export default function StockPage() {
           desc={`ลบ "${delItem.name}" (${delItem.sku}) จะลบประวัติเคลื่อนไหวทั้งหมดด้วย — ไม่สามารถย้อนกลับได้`}
           confirmLabel="ลบ" onConfirm={() => handleDelete(delItem)} onCancel={() => setDelItem(null)}
         />
+      )}
+
+      {/* Bulk CSV Import */}
+      {showImport && (
+        <Suspense fallback={null}>
+          <BulkImport
+            onClose={() => setShowImport(false)}
+            onDone={loadPlants}
+            categories={cats}
+            suppliers={sups}
+          />
+        </Suspense>
+      )}
+
+      {/* Barcode / QR Scanner */}
+      {showScanner && (
+        <Suspense fallback={null}>
+          <BarcodeScanner
+            onClose={() => setShowScanner(false)}
+            onDetected={code => {
+              setShowScanner(false)
+              const trimmed = (code ?? '').trim()
+              if (!trimmed) return
+              setSearch(trimmed)
+              setPage(0)
+              const hit = plants.find(p => p.sku?.toLowerCase() === trimmed.toLowerCase())
+              if (hit) toast.success(`พบ: ${hit.name} (${hit.sku})`)
+              else toast.info(`ไม่พบ SKU "${trimmed}" — แสดงผลค้นหา`)
+            }}
+          />
+        </Suspense>
       )}
     </div>
   )

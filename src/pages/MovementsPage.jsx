@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, lazy, Suspense } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
 import { useAuth } from '../contexts/AuthContext'
@@ -11,6 +11,8 @@ import * as I from '../components/Icons'
 
 const TYPE_LABEL = { in:'รับเข้า', out:'จ่ายออก', adjust:'ปรับ', new:'เพิ่มสินค้า', delete:'ลบสินค้า', rename:'เปลี่ยนชื่อ' }
 
+const Invoice = lazy(() => import('../components/Invoice'))
+
 export default function MovementsPage() {
   const { toast } = useToast()
   const { ownerId } = useAuth()
@@ -19,6 +21,7 @@ export default function MovementsPage() {
   const [search, setSearch]       = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [page, setPage]           = useState(1)
+  const [invoiceFor, setInvoiceFor] = useState(null)
   const PER_PAGE = 30
 
   useEffect(() => {
@@ -113,6 +116,7 @@ export default function MovementsPage() {
                 <th>ประเภท</th>
                 <th>จำนวน</th>
                 <th>หมายเหตุ</th>
+                <th></th>
               </tr></thead>
               <tbody>
                 {paginated.map(m => (
@@ -127,6 +131,18 @@ export default function MovementsPage() {
                       {m.type === 'rename' ? '—' : m.type === 'in' ? `+${m.qty}` : m.type === 'out' ? `-${m.qty}` : m.qty}
                     </td>
                     <td className="text-sm muted">{m.type === 'delete' ? '—' : (m.note ?? '—')}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      {m.type === 'out' && m.plants && (
+                        <button
+                          className="btn btn-ghost"
+                          style={{ fontSize: 11, padding: '4px 8px' }}
+                          onClick={() => setInvoiceFor(m)}
+                          title="ออกใบเสร็จ"
+                        >
+                          ใบเสร็จ
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -141,6 +157,12 @@ export default function MovementsPage() {
             </div>
           )}
         </>
+      )}
+
+      {invoiceFor && (
+        <Suspense fallback={null}>
+          <Invoice movement={invoiceFor} onClose={() => setInvoiceFor(null)} />
+        </Suspense>
       )}
     </div>
   )

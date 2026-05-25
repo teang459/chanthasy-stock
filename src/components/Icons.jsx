@@ -52,3 +52,4 @@ export const Wallet    = p => <Icon {...p}><path d="M2 5a1 1 0 0 1 1-1h10a1 1 0 
 export const TrendUp   = p => <Icon {...p}><path d="M2 11l4-4 3 3 5-6"/><path d="M10 4h4v4"/></Icon>
 export const TrendDown = p => <Icon {...p}><path d="M2 5l4 4 3-3 5 6"/><path d="M10 12h4V8"/></Icon>
 export const Coin      = p => <Icon {...p}><circle cx="8" cy="8" r="6"/><path d="M8 4v8M6 6h3.5a1.5 1.5 0 0 1 0 3H6h4a1.5 1.5 0 0 1 0 3H6"/></Icon>
+export const QrCode    = p => <Icon {...p}><rect x="2" y="2" width="5" height="5" rx="0.5"/><rect x="9" y="2" width="5" height="5" rx="0.5"/><rect x="2" y="9" width="5" height="5" rx="0.5"/><path d="M9 9h2v2M11 13h1M13 9v3M9 13h1"/></Icon>
