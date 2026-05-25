@@ -94,7 +94,7 @@ export default function AdminPage() {
     const { data, error } = await supabase.functions.invoke('admin-manage-users', { body })
     if (error) {
       let msg = null
-      try { const j = await error.context?.json(); msg = j?.error } catch {}
+      try { const j = await error.context?.json(); msg = j?.error } catch { /* ignore JSON parse failure */ }
       return { fnError: msg ?? error.message ?? 'เกิดข้อผิดพลาด' }
     }
     if (data?.error) return { fnError: data.error }
@@ -105,7 +105,7 @@ export default function AdminPage() {
     e.preventDefault()
     if (!newEmail.trim() || !newPassword.trim()) return
     setCreating(true)
-    const { data, fnError } = await callFn({
+    const { fnError } = await callFn({
       action: 'create', email: newEmail.trim(), password: newPassword,
       name: newName.trim(), shop_name: newShop.trim(), role: newRole,
     })

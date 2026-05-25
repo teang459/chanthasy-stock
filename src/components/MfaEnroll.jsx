@@ -136,7 +136,7 @@ export default function MfaEnroll() {
 
   async function cancelEnroll() {
     if (enrolling?.factorId) {
-      try { await supabase.auth.mfa.unenroll({ factorId: enrolling.factorId }) } catch {}
+      try { await supabase.auth.mfa.unenroll({ factorId: enrolling.factorId }) } catch { /* ignore cleanup error */ }
     }
     setEnrolling(null)
     setCode('')

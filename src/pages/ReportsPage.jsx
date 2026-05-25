@@ -26,6 +26,33 @@ function isoDaysAgo(days) {
   return d.toISOString()
 }
 
+// Page through movements so reports stay accurate beyond 5000 rows.
+// Hard-capped at MAX_ROWS to bound memory for runaway shops.
+const PAGE_SIZE = 1000
+const MAX_ROWS  = 50000
+
+async function fetchAllMovements(ownerId, range) {
+  const out = []
+  let offset = 0
+  for (;;) {
+    let q = supabase
+      .from('movements')
+      .select('*, plants(name,sku)')
+      .eq('owner_id', ownerId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1)
+    if (range !== 'all') q = q.gte('created_at', isoDaysAgo(Number(range)))
+    const { data, error } = await q
+    if (error) return { data: out, error, truncated: false }
+    if (!data || data.length === 0) break
+    out.push(...data)
+    if (data.length < PAGE_SIZE) break
+    offset += PAGE_SIZE
+    if (offset >= MAX_ROWS) return { data: out, error: null, truncated: true }
+  }
+  return { data: out, error: null, truncated: false }
+}
+
 export default function ReportsPage() {
   const { toast } = useToast()
   const { ownerId } = useAuth()
@@ -42,12 +69,17 @@ export default function ReportsPage() {
     setLoading(true)
     try {
       const plantsQ = supabase.from('plants').select('*, categories(name_th,hue)').eq('owner_id', ownerId)
-      let movesQ = supabase.from('movements').select('*, plants(name,sku)').eq('owner_id', ownerId).order('created_at', { ascending: false }).limit(5000)
-      if (range !== 'all') movesQ = movesQ.gte('created_at', isoDaysAgo(Number(range)))
-      const [{ data: p, error: pErr }, { data: m, error: mErr }] = await Promise.all([plantsQ, movesQ])
-      if (pErr || mErr) throw (pErr || mErr)
+      const [{ data: p, error: pErr }, movesResult] = await Promise.all([
+        plantsQ,
+        fetchAllMovements(ownerId, range),
+      ])
+      if (pErr) throw pErr
+      if (movesResult.error) throw movesResult.error
       setPlants(p ?? [])
-      setMoves(m ?? [])
+      setMoves(movesResult.data)
+      if (movesResult.truncated) {
+        toast.info('ข้อมูลเคลื่อนไหวมากเกิน 50,000 รายการ — แสดงเฉพาะรายการล่าสุด')
+      }
     } catch (err) {
       toast.error(`โหลดข้อมูลไม่สำเร็จ: ${userMessage(err)}`)
     } finally {
