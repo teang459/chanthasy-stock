@@ -12,15 +12,24 @@ const NAV = [
   { to: '/suppliers',  label: 'ซัพพลายเออร์',      Icon: I.Truck },
 ]
 const SYSTEM = [
-  { to: '/finance',  label: 'การเงิน',  Icon: I.Wallet },
-  { to: '/calendar', label: 'ปฏิทิน',  Icon: I.Calendar },
-  { to: '/reports',  label: 'รายงาน',  Icon: I.Chart },
-  { to: '/settings', label: 'ตั้งค่า', Icon: I.Gear },
+  { to: '/finance',    label: 'การเงิน',     Icon: I.Wallet },
+  { to: '/settlement', label: 'ปิดยอด',     Icon: I.Lock,   perm: 'perm_settle' },
+  { to: '/calendar',   label: 'ปฏิทิน',     Icon: I.Calendar },
+  { to: '/reports',    label: 'รายงาน',     Icon: I.Chart },
+  { to: '/settings',   label: 'ตั้งค่า',    Icon: I.Gear },
 ]
 
 export default function Sidebar({ open, lowCount, onClose }) {
-  const { profile, logout } = useAuth()
-  const user = profile ?? { name: 'ผู้ใช้', role: 'staff', initials: 'UU' }
+  const { profile, logout, perms, isSuperAdmin, stores, currentStoreId } = useAuth()
+  const currentStore = stores.find(s => s.id === currentStoreId)
+  const user = profile ?? { name: 'ผู้ใช้', initials: 'UU' }
+  const roleLabel = isSuperAdmin
+    ? 'Super Admin'
+    : currentStore?.role === 'store_admin'
+      ? 'Store Admin'
+      : currentStore?.role === 'viewer'
+        ? 'Viewer'
+        : 'Staff'
   return (
     <aside className={`sidebar${open ? ' open' : ''}`}>
       <button className="sidebar-close icon-btn" onClick={onClose} aria-label="ปิดเมนู">
@@ -31,7 +40,7 @@ export default function Sidebar({ open, lowCount, onClose }) {
         <div className="brand-mark">CS</div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div className="brand-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {profile?.shop_name?.trim() || 'My Shop'}
+            {currentStore?.name || profile?.shop_name?.trim() || 'My Shop'}
           </div>
           <div className="brand-sub">Chanthasy Stock</div>
         </div>
@@ -51,15 +60,18 @@ export default function Sidebar({ open, lowCount, onClose }) {
           </NavLink>
         ))}
         <div className="nav-section-label">ระบบ</div>
-        {SYSTEM.map(({ to, label, Icon }) => (
-          <NavLink key={to} to={to} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Icon size={15} />
-            <span>{label}</span>
-          </NavLink>
-        ))}
+        {SYSTEM.map(({ to, label, Icon, perm }) => {
+          if (perm && !isSuperAdmin && !perms?.[perm]) return null
+          return (
+            <NavLink key={to} to={to} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <Icon size={15} />
+              <span>{label}</span>
+            </NavLink>
+          )
+        })}
       </nav>
 
-      {user.role === 'admin' && (
+      {isSuperAdmin && (
         <NavLink to="/admin" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={{ margin: '0 8px 4px' }}>
           <I.Gear size={15} />
           <span>Admin Panel</span>
@@ -74,7 +86,7 @@ export default function Sidebar({ open, lowCount, onClose }) {
         <div className="avatar">{user.initials?.slice(0, 2) || '??'}</div>
         <div className="sidebar-user">
           <div className="user-name">{user.name}</div>
-          <div className="user-role">{user.role === 'admin' ? 'Admin' : user.role === 'viewer' ? 'Viewer' : 'Staff'}</div>
+          <div className="user-role">{roleLabel}</div>
         </div>
         <button className="icon-btn" title="ออกจากระบบ" onClick={logout} style={{ marginLeft: 'auto', flexShrink: 0 }}>
           <I.LogOut size={14} />

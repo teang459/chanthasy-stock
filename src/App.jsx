@@ -22,6 +22,7 @@ const SuppliersPage  = lazy(() => import('./pages/SuppliersPage'))
 const CalendarPage   = lazy(() => import('./pages/CalendarPage'))
 const ReportsPage    = lazy(() => import('./pages/ReportsPage'))
 const FinancePage    = lazy(() => import('./pages/FinancePage'))
+const SettlementPage = lazy(() => import('./pages/SettlementPage'))
 const SettingsPage   = lazy(() => import('./pages/SettingsPage'))
 const AdminPage      = lazy(() => import('./pages/AdminPage'))
 const TermsPage      = lazy(() => import('./pages/TermsPage'))
@@ -74,6 +75,7 @@ export default function App() {
                 <Route path="calendar"    element={<CalendarPage />} />
                 <Route path="reports"     element={<ReportsPage />} />
                 <Route path="finance"     element={<FinancePage />} />
+                <Route path="settlement"  element={<SettlementPage />} />
                 <Route path="settings"    element={<SettingsPage />} />
                 <Route path="admin"       element={<AdminPage />} />
                 <Route path="terms"       element={<TermsPage />} />

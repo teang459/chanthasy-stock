@@ -51,7 +51,7 @@ export default function StockPage() {
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
 
-  const [adjForm, setAdjForm] = useState({ type:'in', qty:1, note:'' })
+  const [adjForm, setAdjForm] = useState({ type:'in', qty:1, note:'', payment:'cash' })
   const [page, setPage] = useState(0)
   const PAGE_SIZE = 50
   const [imgUploading, setImgUploading] = useState(false)
@@ -221,6 +221,7 @@ export default function StockPage() {
         p_type:     adjForm.type,
         p_qty:      qty,
         p_note:     adjForm.note?.trim() || null,
+        p_payment:  adjForm.type === 'out' ? adjForm.payment : null,
       })
       if (error) throw error
       toast.success('ปรับสต็อกสำเร็จ')
@@ -364,7 +365,7 @@ export default function StockPage() {
                   <td><StatusBadge status={statusOf(p)} /></td>
                   <td>
                     <div className="row-actions">
-                      {canAdjust && <button className="icon-btn" title="ปรับสต็อก" onClick={() => { setAdjItem(p); setAdjForm({ type:'in',qty:1,note:'' }) }}><I.Adjust size={13} /></button>}
+                      {canAdjust && <button className="icon-btn" title="ปรับสต็อก" onClick={() => { setAdjItem(p); setAdjForm({ type:'in',qty:1,note:'',payment:'cash' }) }}><I.Adjust size={13} /></button>}
                       {canWrite && <button className="icon-btn" title="แก้ไข" onClick={() => openEdit(p)}><I.Edit size={13} /></button>}
                       {canDelete && <button className="icon-btn danger" title="ลบ" onClick={() => setDelItem(p)}><I.Trash size={13} /></button>}
                     </div>
@@ -471,6 +472,16 @@ export default function StockPage() {
             <Field label={adjForm.type==='adjust' ? 'สต็อกใหม่ (จำนวนจริง)' : 'จำนวน'} required>
               <input type="number" min="0" value={adjForm.qty} onChange={e => setAdjForm(f=>({...f,qty:e.target.value}))} autoFocus />
             </Field>
+            {adjForm.type === 'out' && (
+              <Field label="ช่องทางการชำระ">
+                <select value={adjForm.payment} onChange={e => setAdjForm(f=>({...f,payment:e.target.value}))}>
+                  <option value="cash">เงินสด</option>
+                  <option value="transfer">โอนเงิน</option>
+                  <option value="credit">เครดิต / ค้างชำระ</option>
+                  <option value="other">อื่นๆ</option>
+                </select>
+              </Field>
+            )}
             <Field label="หมายเหตุ">
               <input value={adjForm.note} onChange={e => setAdjForm(f=>({...f,note:e.target.value}))} placeholder="เหตุผลการปรับ..." />
             </Field>
