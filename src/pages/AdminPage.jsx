@@ -62,8 +62,13 @@ export default function AdminPage() {
 
   async function saveEdit(shopId) {
     setSaving(true)
+    const payload = {
+      role: editRole,
+      shop_name: editShop.trim() || null,
+    }
+    if (editName.trim()) payload.name = editName.trim()
     const { error } = await supabase.from('profiles')
-      .update({ role: editRole, name: editName.trim() || undefined, shop_name: editShop.trim() || null })
+      .update(payload)
       .eq('id', shopId)
     setSaving(false)
     if (error) {

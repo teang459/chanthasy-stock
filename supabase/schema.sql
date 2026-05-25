@@ -1,14 +1,19 @@
 -- ================================================================
 -- Chanthasy Stock — Supabase Schema (Production)
--- รัน SQL นี้ใน Supabase Dashboard > SQL Editor สำหรับ project ใหม่
--- หรือใช้เป็นเอกสารอ้างอิงสำหรับโครงสร้างปัจจุบัน
+--
+-- This file is the CONSOLIDATED source of truth for a fresh deploy.
+-- It bundles migrations 001–004 so running it on an empty project
+-- produces the same state as the current production database.
+--
+-- For an existing project, prefer running the individual files in
+-- supabase/migrations/ in order.
 -- ================================================================
 
 -- ====================================================
 -- Tables
 -- ====================================================
 
--- Profiles (เชื่อมกับ auth.users; owner = ตัวเอง หรือผูกกับ manager_id ของหัวหน้าทีม)
+-- Profiles (linked to auth.users; owner = self, staff = manager_id set)
 CREATE TABLE IF NOT EXISTS profiles (
   id         UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   name       TEXT NOT NULL DEFAULT '',
@@ -65,7 +70,7 @@ CREATE TABLE IF NOT EXISTS plants (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS plants_sku_per_owner ON plants(owner_id, sku);
 
--- Movements (ประวัติเคลื่อนไหวสต็อก)
+-- Movements (stock history; extended types from migration 001)
 CREATE TABLE IF NOT EXISTS movements (
   id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   owner_id   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -89,6 +94,21 @@ CREATE TABLE IF NOT EXISTS calendar_events (
   created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Finance entries (migration 002: manual income/expense ledger)
+CREATE TABLE IF NOT EXISTS finance_entries (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type       TEXT NOT NULL CHECK (type IN ('income','expense')),
+  category   TEXT NOT NULL DEFAULT 'other',
+  title      TEXT NOT NULL,
+  amount     NUMERIC(12,2) NOT NULL CHECK (amount >= 0),
+  date       DATE NOT NULL DEFAULT CURRENT_DATE,
+  note       TEXT,
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS finance_entries_owner_date_idx ON finance_entries(owner_id, date DESC);
 
 -- ====================================================
 -- Helper functions (SECURITY DEFINER bypasses RLS internally)
@@ -124,20 +144,28 @@ $func$;
 -- Row Level Security
 -- ====================================================
 
-ALTER TABLE profiles        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE categories      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE suppliers       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE plants          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE movements       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE categories       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE suppliers        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE plants           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE movements        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE calendar_events  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE finance_entries  ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: self_only + admin_bypass
-CREATE POLICY profiles_self    ON profiles FOR ALL
+DROP POLICY IF EXISTS profiles_self  ON profiles;
+DROP POLICY IF EXISTS profiles_admin ON profiles;
+CREATE POLICY profiles_self  ON profiles FOR ALL
   USING (id = auth.uid()) WITH CHECK (id = auth.uid());
-CREATE POLICY profiles_admin   ON profiles FOR ALL
+CREATE POLICY profiles_admin ON profiles FOR ALL
   USING (is_admin())      WITH CHECK (is_admin());
 
 -- Plants
+DROP POLICY IF EXISTS plants_select ON plants;
+DROP POLICY IF EXISTS plants_insert ON plants;
+DROP POLICY IF EXISTS plants_update ON plants;
+DROP POLICY IF EXISTS plants_delete ON plants;
+DROP POLICY IF EXISTS plants_admin  ON plants;
 CREATE POLICY plants_select ON plants FOR SELECT USING (owner_id = effective_owner_id());
 CREATE POLICY plants_insert ON plants FOR INSERT WITH CHECK (owner_id = effective_owner_id() AND can_write());
 CREATE POLICY plants_update ON plants FOR UPDATE USING (owner_id = effective_owner_id() AND can_write())  WITH CHECK (owner_id = effective_owner_id() AND can_write());
@@ -145,6 +173,11 @@ CREATE POLICY plants_delete ON plants FOR DELETE USING (owner_id = effective_own
 CREATE POLICY plants_admin  ON plants FOR ALL USING (is_admin()) WITH CHECK (is_admin());
 
 -- Categories
+DROP POLICY IF EXISTS categories_select ON categories;
+DROP POLICY IF EXISTS categories_insert ON categories;
+DROP POLICY IF EXISTS categories_update ON categories;
+DROP POLICY IF EXISTS categories_delete ON categories;
+DROP POLICY IF EXISTS categories_admin  ON categories;
 CREATE POLICY categories_select ON categories FOR SELECT USING (owner_id = effective_owner_id());
 CREATE POLICY categories_insert ON categories FOR INSERT WITH CHECK (owner_id = effective_owner_id() AND can_write());
 CREATE POLICY categories_update ON categories FOR UPDATE USING (owner_id = effective_owner_id() AND can_write())  WITH CHECK (owner_id = effective_owner_id() AND can_write());
@@ -152,6 +185,11 @@ CREATE POLICY categories_delete ON categories FOR DELETE USING (owner_id = effec
 CREATE POLICY categories_admin  ON categories FOR ALL USING (is_admin()) WITH CHECK (is_admin());
 
 -- Suppliers
+DROP POLICY IF EXISTS suppliers_select ON suppliers;
+DROP POLICY IF EXISTS suppliers_insert ON suppliers;
+DROP POLICY IF EXISTS suppliers_update ON suppliers;
+DROP POLICY IF EXISTS suppliers_delete ON suppliers;
+DROP POLICY IF EXISTS suppliers_admin  ON suppliers;
 CREATE POLICY suppliers_select ON suppliers FOR SELECT USING (owner_id = effective_owner_id());
 CREATE POLICY suppliers_insert ON suppliers FOR INSERT WITH CHECK (owner_id = effective_owner_id() AND can_write());
 CREATE POLICY suppliers_update ON suppliers FOR UPDATE USING (owner_id = effective_owner_id() AND can_write())  WITH CHECK (owner_id = effective_owner_id() AND can_write());
@@ -159,6 +197,11 @@ CREATE POLICY suppliers_delete ON suppliers FOR DELETE USING (owner_id = effecti
 CREATE POLICY suppliers_admin  ON suppliers FOR ALL USING (is_admin()) WITH CHECK (is_admin());
 
 -- Movements (no UPDATE/DELETE for staff, only owner/admin)
+DROP POLICY IF EXISTS movements_select ON movements;
+DROP POLICY IF EXISTS movements_insert ON movements;
+DROP POLICY IF EXISTS movements_update ON movements;
+DROP POLICY IF EXISTS movements_delete ON movements;
+DROP POLICY IF EXISTS movements_admin  ON movements;
 CREATE POLICY movements_select ON movements FOR SELECT USING (owner_id = effective_owner_id());
 CREATE POLICY movements_insert ON movements FOR INSERT WITH CHECK (owner_id = effective_owner_id() AND can_write());
 CREATE POLICY movements_update ON movements FOR UPDATE USING (owner_id = effective_owner_id() AND can_delete())  WITH CHECK (owner_id = effective_owner_id() AND can_delete());
@@ -166,89 +209,189 @@ CREATE POLICY movements_delete ON movements FOR DELETE USING (owner_id = effecti
 CREATE POLICY movements_admin  ON movements FOR ALL USING (is_admin()) WITH CHECK (is_admin());
 
 -- Calendar
+DROP POLICY IF EXISTS calendar_select ON calendar_events;
+DROP POLICY IF EXISTS calendar_insert ON calendar_events;
+DROP POLICY IF EXISTS calendar_update ON calendar_events;
+DROP POLICY IF EXISTS calendar_delete ON calendar_events;
+DROP POLICY IF EXISTS calendar_admin  ON calendar_events;
 CREATE POLICY calendar_select ON calendar_events FOR SELECT USING (owner_id = effective_owner_id());
 CREATE POLICY calendar_insert ON calendar_events FOR INSERT WITH CHECK (owner_id = effective_owner_id() AND can_write());
 CREATE POLICY calendar_update ON calendar_events FOR UPDATE USING (owner_id = effective_owner_id() AND can_write())  WITH CHECK (owner_id = effective_owner_id() AND can_write());
 CREATE POLICY calendar_delete ON calendar_events FOR DELETE USING (owner_id = effective_owner_id() AND can_delete());
 CREATE POLICY calendar_admin  ON calendar_events FOR ALL USING (is_admin()) WITH CHECK (is_admin());
 
+-- Finance entries
+DROP POLICY IF EXISTS finance_select ON finance_entries;
+DROP POLICY IF EXISTS finance_insert ON finance_entries;
+DROP POLICY IF EXISTS finance_update ON finance_entries;
+DROP POLICY IF EXISTS finance_delete ON finance_entries;
+DROP POLICY IF EXISTS finance_admin  ON finance_entries;
+CREATE POLICY finance_select ON finance_entries FOR SELECT USING (owner_id = effective_owner_id());
+CREATE POLICY finance_insert ON finance_entries FOR INSERT WITH CHECK (owner_id = effective_owner_id() AND can_write());
+CREATE POLICY finance_update ON finance_entries FOR UPDATE USING (owner_id = effective_owner_id() AND can_write())  WITH CHECK (owner_id = effective_owner_id() AND can_write());
+CREATE POLICY finance_delete ON finance_entries FOR DELETE USING (owner_id = effective_owner_id() AND can_delete());
+CREATE POLICY finance_admin  ON finance_entries FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+
 -- ====================================================
--- Trigger: create profile when user signs up
+-- Trigger: create profile when user signs up (migration 003)
 -- ====================================================
 
-CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE
-  v_manager UUID;
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $handle$
 BEGIN
-  -- Auto-link to manager if email is in a team_invites table (left out for now)
   INSERT INTO public.profiles (id, name, role, initials)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
     'staff',
-    upper(left(split_part(NEW.email,'@',1), 2))
+    upper(left(split_part(NEW.email, '@', 1), 2))
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
-$$;
+$handle$;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- Trigger: auto-update updated_at
-CREATE OR REPLACE FUNCTION update_updated_at()
+CREATE OR REPLACE FUNCTION public.update_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
 $$;
 
 DROP TRIGGER IF EXISTS plants_updated_at ON plants;
 CREATE TRIGGER plants_updated_at BEFORE UPDATE ON plants
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
 DROP TRIGGER IF EXISTS profiles_updated_at ON profiles;
 CREATE TRIGGER profiles_updated_at BEFORE UPDATE ON profiles
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
 -- ====================================================
--- RPC: adjust_stock (used by StockPage UI)
+-- Trigger: log plant lifecycle events into movements (migration 003)
+-- Skips the DELETE log row when the owner is being cascade-deleted,
+-- so removing an auth.user does not fail on the FK.
 -- ====================================================
 
-CREATE OR REPLACE FUNCTION adjust_stock(p_plant_id UUID, p_type TEXT, p_qty INTEGER, p_note TEXT)
-RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE
-  v_plant plants%ROWTYPE;
-  v_new_stock INTEGER;
-  v_qty_signed INTEGER;
+CREATE OR REPLACE FUNCTION public.log_plant_event()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $logplant$
 BEGIN
-  SELECT * INTO v_plant FROM plants WHERE id = p_plant_id;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Plant not found'; END IF;
+  IF TG_OP = 'INSERT' THEN
+    INSERT INTO movements (plant_id, type, qty, note, created_by, owner_id)
+    VALUES (NEW.id, 'new', NEW.stock, NEW.name, auth.uid(), NEW.owner_id);
+    RETURN NEW;
 
-  IF p_type = 'in'      THEN v_new_stock := v_plant.stock + p_qty; v_qty_signed := p_qty;
-  ELSIF p_type = 'out'  THEN v_new_stock := v_plant.stock - p_qty; v_qty_signed := -p_qty;
-                              IF v_new_stock < 0 THEN RAISE EXCEPTION 'Insufficient stock'; END IF;
-  ELSIF p_type = 'adjust' THEN v_new_stock := p_qty; v_qty_signed := p_qty - v_plant.stock;
-  ELSE RAISE EXCEPTION 'Invalid adjustment type';
+  ELSIF TG_OP = 'DELETE' THEN
+    IF EXISTS (SELECT 1 FROM auth.users WHERE id = OLD.owner_id) THEN
+      INSERT INTO movements (plant_id, type, qty, note, created_by, owner_id)
+      VALUES (NULL, 'delete', OLD.stock, OLD.name, auth.uid(), OLD.owner_id);
+    END IF;
+    RETURN OLD;
+
+  ELSIF TG_OP = 'UPDATE' AND OLD.name IS DISTINCT FROM NEW.name THEN
+    INSERT INTO movements (plant_id, type, qty, note, created_by, owner_id)
+    VALUES (NEW.id, 'rename', 0, OLD.name || ' > ' || NEW.name, auth.uid(), NEW.owner_id);
+    RETURN NEW;
   END IF;
 
-  UPDATE plants SET stock = v_new_stock, updated_at = NOW() WHERE id = p_plant_id;
+  RETURN NEW;
+END;
+$logplant$;
+
+DROP TRIGGER IF EXISTS plants_log_event ON plants;
+CREATE TRIGGER plants_log_event
+  AFTER INSERT OR UPDATE OR DELETE ON plants
+  FOR EACH ROW EXECUTE FUNCTION public.log_plant_event();
+
+-- ====================================================
+-- RPC: adjust_stock (migration 004 — secure version)
+-- Enforces tenant + role inside the function because
+-- SECURITY DEFINER bypasses RLS.
+-- ====================================================
+
+CREATE OR REPLACE FUNCTION public.adjust_stock(
+  p_plant_id UUID,
+  p_type     TEXT,
+  p_qty      INTEGER,
+  p_note     TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $adjust$
+DECLARE
+  v_plant      plants%ROWTYPE;
+  v_owner      UUID;
+  v_new_stock  INTEGER;
+  v_qty_signed INTEGER;
+BEGIN
+  v_owner := effective_owner_id();
+  IF v_owner IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '42501';
+  END IF;
+
+  IF NOT can_write() THEN
+    RAISE EXCEPTION 'Not permitted to write' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT * INTO v_plant
+  FROM plants
+  WHERE id = p_plant_id
+    AND owner_id = v_owner;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Plant not found or not permitted' USING ERRCODE = '42501';
+  END IF;
+
+  IF p_type = 'in' THEN
+    IF p_qty <= 0 THEN RAISE EXCEPTION 'qty must be > 0 for in' USING ERRCODE = '22023'; END IF;
+    v_new_stock  := v_plant.stock + p_qty;
+    v_qty_signed := p_qty;
+  ELSIF p_type = 'out' THEN
+    IF p_qty <= 0 THEN RAISE EXCEPTION 'qty must be > 0 for out' USING ERRCODE = '22023'; END IF;
+    v_new_stock  := v_plant.stock - p_qty;
+    v_qty_signed := -p_qty;
+    IF v_new_stock < 0 THEN RAISE EXCEPTION 'Insufficient stock' USING ERRCODE = '23514'; END IF;
+  ELSIF p_type = 'adjust' THEN
+    IF p_qty < 0 THEN RAISE EXCEPTION 'qty must be >= 0 for adjust' USING ERRCODE = '22023'; END IF;
+    v_new_stock  := p_qty;
+    v_qty_signed := p_qty - v_plant.stock;
+  ELSE
+    RAISE EXCEPTION 'Invalid adjustment type' USING ERRCODE = '22023';
+  END IF;
+
+  UPDATE plants
+     SET stock = v_new_stock,
+         updated_at = NOW()
+   WHERE id = p_plant_id;
+
   INSERT INTO movements (owner_id, plant_id, type, qty, note, created_by)
   VALUES (v_plant.owner_id, p_plant_id, p_type, v_qty_signed, p_note, auth.uid());
 END;
-$$;
+$adjust$;
+
+GRANT EXECUTE ON FUNCTION public.adjust_stock(UUID, TEXT, INTEGER, TEXT) TO authenticated;
 
 -- ====================================================
--- RPC: get_all_shops_for_admin (used by AdminPage)
+-- RPC: get_all_shops_for_admin
 -- ====================================================
 
+DROP FUNCTION IF EXISTS public.get_all_shops_for_admin();
 CREATE OR REPLACE FUNCTION public.get_all_shops_for_admin()
 RETURNS TABLE(
-  id UUID, name TEXT, shop_name TEXT, role TEXT,
-  plant_count BIGINT, updated_at TIMESTAMPTZ, email TEXT, manager_id UUID
-) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+  id UUID,
+  name TEXT,
+  shop_name TEXT,
+  role TEXT,
+  plant_count BIGINT,
+  updated_at TIMESTAMPTZ,
+  email TEXT,
+  manager_id UUID
+) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $shops$
 BEGIN
   IF NOT is_admin() THEN
     RAISE EXCEPTION 'Unauthorized' USING ERRCODE = '42501';
@@ -264,9 +407,9 @@ BEGIN
     LEFT JOIN auth.users u ON u.id = p.id
     ORDER BY p.updated_at DESC NULLS LAST;
 END;
-$$;
+$shops$;
 
-GRANT EXECUTE ON FUNCTION get_all_shops_for_admin() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_all_shops_for_admin() TO authenticated;
 
 -- ====================================================
 -- Storage bucket: plant-images

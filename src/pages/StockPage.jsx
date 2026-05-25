@@ -126,7 +126,8 @@ export default function StockPage() {
       // Cleanup previous image if replaced
       const oldPath = storagePath(form.image_url)
       if (oldPath && oldPath !== path) {
-        supabase.storage.from('plant-images').remove([oldPath]).catch(() => {})
+        supabase.storage.from('plant-images').remove([oldPath])
+          .catch(err => console.error('[storage cleanup] replace', oldPath, err))
       }
       setF('image_url', publicUrl)
     } catch (err) {
@@ -138,7 +139,10 @@ export default function StockPage() {
 
   function removeImage() {
     const oldPath = storagePath(form.image_url)
-    if (oldPath) supabase.storage.from('plant-images').remove([oldPath]).catch(() => {})
+    if (oldPath) {
+      supabase.storage.from('plant-images').remove([oldPath])
+        .catch(err => console.error('[storage cleanup] removeImage', oldPath, err))
+    }
     setF('image_url', '')
   }
 
@@ -183,7 +187,10 @@ export default function StockPage() {
     try {
       // Cleanup storage image first
       const path = storagePath(p.image_url)
-      if (path) supabase.storage.from('plant-images').remove([path]).catch(() => {})
+      if (path) {
+        supabase.storage.from('plant-images').remove([path])
+          .catch(err => console.error('[storage cleanup] handleDelete', path, err))
+      }
       const { error } = await supabase.from('plants').delete().eq('id', p.id)
       if (error) throw error
       toast.success('ลบต้นไม้สำเร็จ')

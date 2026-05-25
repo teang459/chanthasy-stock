@@ -25,7 +25,7 @@ export default function MovementsPage() {
     if (!ownerId) return
     load()
     const ch = supabase.channel(`movements-${ownerId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'movements', filter: `owner_id=eq.${ownerId}` }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'movements', filter: `owner_id=eq.${ownerId}` }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
   }, [ownerId])

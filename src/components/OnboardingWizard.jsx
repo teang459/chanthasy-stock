@@ -2,12 +2,15 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
+import { userMessage } from '../lib/errors'
 import Spinner from './Spinner'
 
 const STEPS = ['ยินดีต้อนรับ', 'ตั้งค่าร้าน', 'เริ่มใช้งาน']
 
 export default function OnboardingWizard({ onDone }) {
   const { user, profile, refreshProfile } = useAuth()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const [shopName, setShopName] = useState('')
@@ -16,7 +19,14 @@ export default function OnboardingWizard({ onDone }) {
   async function saveShopName() {
     if (!shopName.trim()) return
     setSaving(true)
-    await supabase.from('profiles').update({ shop_name: shopName.trim() }).eq('id', user.id)
+    const { error } = await supabase.from('profiles')
+      .update({ shop_name: shopName.trim() })
+      .eq('id', user.id)
+    if (error) {
+      setSaving(false)
+      toast.error(`บันทึกไม่สำเร็จ: ${userMessage(error)}`)
+      return
+    }
     await refreshProfile?.()
     setSaving(false)
     setStep(2)

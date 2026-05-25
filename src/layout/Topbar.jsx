@@ -52,10 +52,11 @@ export default function Topbar({ onMenuToggle, lowCount, notifications, onNotifT
     return () => document.removeEventListener('keydown', handler)
   }, [])
 
-  function handleSearch(e) {
-    const val = e.target.value
-    setQ(val)
-    if (val && location.pathname !== '/stock') navigate('/stock', { state: { search: val } })
+  function handleSubmit(e) {
+    e.preventDefault()
+    const val = q.trim()
+    if (!val) return
+    if (location.pathname !== '/stock') navigate('/stock', { state: { search: val } })
   }
 
   return (
@@ -75,16 +76,17 @@ export default function Topbar({ onMenuToggle, lowCount, notifications, onNotifT
 
       <div className="topbar-shopname">{shopName}</div>
 
-      <div className="topbar-search">
+      <form className="topbar-search" onSubmit={handleSubmit} role="search">
         <I.Search size={13} className="search-icon" />
         <input
           ref={inputRef}
-          placeholder="ค้นหา SKU, ชื่อต้นไม้…"
+          type="search"
+          placeholder="ค้นหา SKU, ชื่อต้นไม้… (Enter)"
           value={q}
-          onChange={handleSearch}
+          onChange={e => setQ(e.target.value)}
         />
         <span className="kbd">⌘K</span>
-      </div>
+      </form>
 
       <button className="icon-btn notif-btn" onClick={onNotifToggle} aria-label="การแจ้งเตือน" style={{ position: 'relative' }}>
         <I.Bell size={15} />
