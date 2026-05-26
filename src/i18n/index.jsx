@@ -1,12 +1,10 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import th from './th'
-import lo from './lo'
 import en from './en'
 
-const DICTS = { th, lo, en }
+const DICTS = { th, en }
 export const LOCALES = [
   { code: 'th', label: 'ไทย',     short: 'TH' },
-  { code: 'lo', label: 'ລາວ',     short: 'LA' },
   { code: 'en', label: 'English', short: 'EN' },
 ]
 const STORAGE_KEY = 'cs_locale'
@@ -18,7 +16,6 @@ function detectInitialLocale() {
   const saved = window.localStorage?.getItem(STORAGE_KEY)
   if (saved && DICTS[saved]) return saved
   const nav = (navigator.language || 'th').toLowerCase()
-  if (nav.startsWith('lo')) return 'lo'
   if (nav.startsWith('en')) return 'en'
   return 'th'
 }

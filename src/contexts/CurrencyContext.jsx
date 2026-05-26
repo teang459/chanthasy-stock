@@ -22,7 +22,7 @@ export function CurrencyProvider({ children }) {
     }
   }, [currentStore?.currency, currency])
 
-  // Manual override (e.g. user prefers Lao display on a Thai store).
+  // Manual override for testing / user preference.
   // Persists locally only; store currency is the source of truth.
   function setCurrency(c) {
     setCurrencyState(c)

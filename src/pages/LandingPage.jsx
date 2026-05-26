@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as I from '../components/Icons'
 
-// Bilingual content. Default = Thai; users can flip to Lao.
+// Bilingual content. Default = Thai; users can flip to English.
 const T = {
   th: {
     nav_login: 'เข้าสู่ระบบ',
@@ -27,28 +27,28 @@ const T = {
     footer_terms: 'เงื่อนไขการใช้งาน',
     footer_privacy: 'ความเป็นส่วนตัว',
   },
-  lo: {
-    nav_login: 'ເຂົ້າສູ່ລະບົບ',
-    hero_h1:    'ລະບົບຄຸ້ມຄອງສິນຄ້າຄົງຄັງຕົ້ນໄມ້ ຄົບວົງຈອນ',
-    hero_sub:   'Multi-tenant SaaS ສຳລັບຮ້ານຕົ້ນໄມ້, ສວນ ແລະໂຄງການພູມສະຖາປັດ — ບັນທຶກ, ຕິດຕາມ, ລາຍງານ, ອອກໃບເສັດ ໃນທີ່ດຽວ',
-    hero_cta_primary:   'ເຂົ້າສູ່ລະບົບ',
-    hero_cta_secondary: 'ເບິ່ງຄຸນສົມບັດທັງໝົດ',
-    sec_features: 'ຄຸນສົມບັດຫຼັກ',
-    feature_stock:    { title: 'ຄຸ້ມຄອງສິນຄ້າແບບເຣຍລ໌ໄທ',  desc: 'ປັບປຸງຈຳນວນທັນທີເມື່ອມີການຮັບເຂົ້າ/ຈ່າຍອອກ/ປັບສະຕັອກ' },
-    feature_reports:  { title: 'ລາຍງານ + Dashboard',     desc: 'ມູນຄ່າຕາມຫມວດ, Top 10, ອາຍຸສິນຄ້າ, ລາຍງານພາສີ ພ້ອມ export CSV' },
-    feature_invoice:  { title: 'ໃບກຳກັບພາສີ + ໃບເສັດ',     desc: 'ອອກເອກະສານ PDF ໄດ້ທັນທີ ຮອງຮັບ VAT (inclusive/exclusive)' },
-    feature_scanner:  { title: 'Barcode / QR Scanner',    desc: 'ສະແກນຜ່ານກ້ອງມືຖື → ຄົ້ນຫາສິນຄ້າ ແລະປັບສະຕັອກໄດ້ໃນວິນາທີ' },
-    feature_import:   { title: 'ນຳເຂົ້າຈາກ Excel/CSV',    desc: 'ຍ້າຍຂໍ້ມູນເດີມ 500-2000 ລາຍການໃນຄລິກດຽວ ພ້ອມ validate' },
-    feature_mobile:   { title: 'ຮອງຮັບມືຖື + PWA',         desc: 'ຕິດຕັ້ງເປັນແອັບໄດ້ໃນ iOS / Android ເຮັດວຽກອອບໄລນ໌ໄດ້ບາງສ່ວນ' },
-    feature_security: { title: 'ຄວາມປອດໄພລະດັບອົງກອນ',     desc: '2FA, Row-Level Security, ແຍກຂໍ້ມູນແຕ່ລະຮ້ານ' },
-    feature_team:     { title: 'ທີມງານ ແລະສິດທິ',          desc: 'Admin / Staff / Viewer ພ້ອມ audit log ການປ່ຽນແປງທຸກລາຍການ' },
-    sec_pricing: 'ລາຄາ',
-    pricing_h:   'ທົດລອງໃຊ້ຟຣີ — ຕິດຕໍ່ຂໍບັນຊີຈາກແອັດມິນ',
-    pricing_sub: 'ປັດຈຸບັນຍັງບໍ່ມີ public signup. ຕິດຕໍ່ທີມພວກເຮົາເພື່ອຕັ້ງ account ໃຫ້ຮ້ານຂອງທ່ານ',
-    cta_contact: 'ຕິດຕໍ່ຂໍໃຊ້ງານ',
-    footer_about: 'Chanthasy Stock — ລະບົບຄຸ້ມຄອງສິນຄ້າຕົ້ນໄມ້',
-    footer_terms: 'ເງື່ອນໄຂການໃຊ້ງານ',
-    footer_privacy: 'ຄວາມເປັນສ່ວນຕົວ',
+  en: {
+    nav_login: 'Sign in',
+    hero_h1:    'Complete plant stock management system',
+    hero_sub:   'Multi-tenant SaaS designed for plant shops, nurseries & landscape projects — record, track, report, invoice all in one place',
+    hero_cta_primary:   'Sign in',
+    hero_cta_secondary: 'See all features',
+    sec_features: 'Key Features',
+    feature_stock:    { title: 'Real-time stock management',  desc: 'Update quantities instantly as items are received, sold, or adjusted. Multiple users can edit simultaneously' },
+    feature_reports:  { title: 'Reports + Dashboard',         desc: 'Value by category, Top 10, stock age, sales tax reports with CSV export' },
+    feature_invoice:  { title: 'Tax invoices + Receipts',     desc: 'Generate PDF documents instantly. Print ready. Supports 7% VAT (inclusive/exclusive)' },
+    feature_scanner:  { title: 'Barcode / QR Scanner',        desc: 'Scan via mobile camera → find items and adjust stock in seconds' },
+    feature_import:   { title: 'Import from Excel/CSV',       desc: 'Migrate 500–2000 items in one click with validation and preview' },
+    feature_mobile:   { title: 'Mobile + PWA support',        desc: 'Install as an app on iOS / Android. Works partially offline' },
+    feature_security: { title: 'Enterprise-grade security',   desc: '2FA, Row-Level Security, strict data isolation per store' },
+    feature_team:     { title: 'Team & permissions',          desc: 'Admin / Staff / Viewer roles plus audit log of every change' },
+    sec_pricing: 'Pricing',
+    pricing_h:   'Try free — request an account from your admin',
+    pricing_sub: 'Currently no public signup. Contact us to set up an account for your store',
+    cta_contact: 'Request access',
+    footer_about: 'Chanthasy Stock — plant stock management system',
+    footer_terms: 'Terms of use',
+    footer_privacy: 'Privacy policy',
   },
 }
 
@@ -90,10 +90,10 @@ export default function LandingPage() {
               aria-label="ไทย"
             >TH</button>
             <button
-              className={lang === 'lo' ? 'active' : ''}
-              onClick={() => setLangAndStore('lo')}
-              aria-label="ลາວ"
-            >LA</button>
+              className={lang === 'en' ? 'active' : ''}
+              onClick={() => setLangAndStore('en')}
+              aria-label="English"
+            >EN</button>
           </div>
           <Link className="btn btn-primary" to="/login">{L.nav_login} →</Link>
         </nav>
