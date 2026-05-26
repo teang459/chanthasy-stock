@@ -109,9 +109,9 @@ export default function DashboardPage() {
       </div>
 
       <div className="dash-quick-actions">
-        <QuickAction icon={I.Box}    label={t('dashboard.action_adjust_stock')} to="/stock" />
-        <QuickAction icon={I.Truck}  label={t('dashboard.action_purchase_order')} to="/purchase-orders" />
-        <QuickAction icon={I.Chart}  label={t('dashboard.action_reports')} to="/reports" />
+        <QuickAction icon={I.Box}     label={t('dashboard.action_adjust_stock')} to="/stock" />
+        <QuickAction icon={I.Wallet}  label={t('dashboard.action_settlement')} to="/settlement" />
+        <QuickAction icon={I.Truck}   label={t('dashboard.action_purchase_order')} to="/purchase-orders" />
       </div>
 
       <div className="dash-grid">
