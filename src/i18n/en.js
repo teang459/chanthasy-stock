@@ -187,8 +187,6 @@ export default {
     about_email: 'Email',
   },
 
-  dashboard: { page_title: 'Dashboard' },
-
   stock: {
     page_title: 'Stock',
     add_plant: 'Add plant',

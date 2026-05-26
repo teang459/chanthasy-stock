@@ -187,10 +187,6 @@ export default {
     about_email: 'อีเมล',
   },
 
-  dashboard: {
-    page_title: 'แดชบอร์ด',
-  },
-
   stock: {
     page_title: 'รายการสต็อก',
     add_plant: 'เพิ่มต้นไม้',
