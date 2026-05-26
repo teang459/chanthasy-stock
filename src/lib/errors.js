@@ -27,7 +27,13 @@ export function userMessage(err) {
   if (code && PG_CODES[code]) return PG_CODES[code]
   const msg = err.message || String(err)
   for (const { re, msg: m } of AUTH_PATTERNS) if (re.test(msg)) return m
-  return 'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง'
+  // Surface the raw error text instead of swallowing it — generic
+  // "เกิดข้อผิดพลาด" hides the real cause (e.g. Edge Function 404 /
+  // permission denied / non-Postgres failure) and makes diagnosis
+  // impossible. Keep the Thai prefix so the UX stays consistent.
+  return msg && msg !== '[object Object]'
+    ? `เกิดข้อผิดพลาด: ${msg}`
+    : 'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง'
 }
 
 // Strong password: at least 8 chars, mix letters + digits, not in common list

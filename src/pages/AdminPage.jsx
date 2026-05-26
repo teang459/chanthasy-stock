@@ -443,9 +443,15 @@ function AddMemberModal({ storeId, existingMemberUserIds, allUsers, onClose, onD
       body: { action: 'create', email: newEmail.trim(), password: newPassword, name: newName.trim() },
     })
     if (error) {
-      let msg = null
-      try { const j = await error.context?.json(); msg = j?.error } catch { /* ignore */ }
-      throw new Error(msg ?? error.message ?? 'create failed')
+      // FunctionsHttpError.context is the original Response; try json then text.
+      let body = null
+      try { body = await error.context?.clone?.().json?.() } catch { /* ignore */ }
+      if (!body) {
+        try { body = { error: await error.context?.clone?.().text?.() } } catch { /* ignore */ }
+      }
+      const msg = body?.error || body?.message || error.message || 'create failed'
+      console.error('admin-manage-users create failed:', { error, body })
+      throw new Error(msg)
     }
     if (data?.error) throw new Error(data.error)
     return data?.user?.id
