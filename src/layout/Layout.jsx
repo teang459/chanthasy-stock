@@ -121,7 +121,7 @@ export default function Layout() {
         </div>
       </div>
 
-      <MobileNav lowCount={lowPlants.length} />
+      <MobileNav lowCount={lowPlants.length} onMenuOpen={() => setSidebarOpen(true)} />
 
       {showOnboarding && (
         <OnboardingWizard onDone={() => setShowOnboarding(false)} />

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { statusOf, fmtCurrency, fmtDateTime } from '../lib/utils'
 import { useCurrency } from '../contexts/CurrencyContext'
 import { useAuth } from '../contexts/AuthContext'
+import { useT } from '../i18n'
 import StatusBadge from '../components/StatusBadge'
 import Spinner from '../components/Spinner'
 import { SkeletonStats, SkeletonBox } from '../components/Skeleton'
@@ -12,6 +13,7 @@ import * as I from '../components/Icons'
 export default function DashboardPage() {
   const { symbol } = useCurrency()
   const { ownerId } = useAuth()
+  const t = useT()
   const [plants, setPlants]    = useState([])
   const [moves, setMoves]      = useState([])
   const [loading, setLoading]  = useState(true)
@@ -53,11 +55,11 @@ export default function DashboardPage() {
       <div className="page">
         <div className="page-header">
           <div>
-            <h1 className="page-title">แดชบอร์ด</h1>
-            <p className="page-sub">กำลังโหลด...</p>
+            <h1 className="page-title">{t('dashboard.page_title')}</h1>
+            <p className="page-sub">{t('common.loading')}</p>
           </div>
         </div>
-        <SkeletonStats count={6} />
+        <SkeletonStats count={4} />
         <div className="dash-grid" style={{ marginTop: 24 }}>
           <section className="card" style={{ padding: 16 }}>
             <SkeletonBox height={20} width="40%" style={{ marginBottom: 16 }} />
@@ -86,28 +88,40 @@ export default function DashboardPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1 className="page-title">แดชบอร์ด</h1>
-          <p className="page-sub">ภาพรวมระบบสต็อก</p>
+          <h1 className="page-title">{t('dashboard.page_title')}</h1>
+          <p className="page-sub">{t('dashboard.page_sub')}</p>
         </div>
       </div>
 
+      {(stats.low > 0 || stats.out > 0) && (
+        <div className="dash-alert-banner">
+          <I.Alert size={16} />
+          <span>{t('dashboard.alert_banner_prefix')} <strong>{stats.low + stats.out}</strong> {t('dashboard.alert_banner_suffix')}</span>
+          <Link to="/low" className="dash-alert-link">{t('dashboard.alert_banner_view_all')} →</Link>
+        </div>
+      )}
+
       <div className="stats-grid">
-        <StatCard label="สินค้าทั้งหมด" value={stats.total} unit="รายการ" icon={I.Box} color={140} />
-        <StatCard label="สต็อกรวม"      value={stats.totalStock} unit="หน่วย"  icon={I.Package} color={170} />
-        <StatCard label="มูลค่าสต็อก"   value={fmtCurrency(stats.totalValue)} unit={symbol} icon={I.Chart} color={220} />
-        <StatCard label="สต็อกปกติ"     value={stats.ok} unit="รายการ"  icon={I.Check} color={140} />
-        <StatCard label="ใกล้หมด"       value={stats.low} unit="รายการ" icon={I.Alert} color={60} alert={stats.low > 0} />
-        <StatCard label="หมดสต็อก"      value={stats.out} unit="รายการ" icon={I.Warning} color={25} alert={stats.out > 0} />
+        <StatCard label={t('dashboard.stats_total')} value={stats.total} unit={t('common.items')} icon={I.Box} color={140} />
+        <StatCard label={t('dashboard.stats_value')} value={fmtCurrency(stats.totalValue)} unit={symbol} icon={I.Chart} color={220} />
+        <StatCard label={t('dashboard.stats_low')} value={stats.low} unit={t('common.items')} icon={I.Alert} color={60} alert={stats.low > 0} />
+        <StatCard label={t('dashboard.stats_out')} value={stats.out} unit={t('common.items')} icon={I.Warning} color={25} alert={stats.out > 0} />
+      </div>
+
+      <div className="dash-quick-actions">
+        <QuickAction icon={I.Box}    label={t('dashboard.action_adjust_stock')} to="/stock" />
+        <QuickAction icon={I.Truck}  label={t('dashboard.action_purchase_order')} to="/purchase-orders" />
+        <QuickAction icon={I.Chart}  label={t('dashboard.action_reports')} to="/reports" />
       </div>
 
       <div className="dash-grid">
         <section className="card">
           <div className="card-header">
-            <h2 className="card-title"><I.Alert size={14} /> สินค้าที่ต้องดำเนินการ</h2>
-            <Link to="/low" className="btn btn-ghost" style={{ fontSize: 12, padding: '3px 8px' }}>ดูทั้งหมด</Link>
+            <h2 className="card-title"><I.Alert size={14} /> {t('dashboard.alerts_title')}</h2>
+            <Link to="/low" className="btn btn-ghost" style={{ fontSize: 12, padding: '3px 8px' }}>{t('common.all')}</Link>
           </div>
           {stats.alerts.length === 0 ? (
-            <div className="card-empty"><I.Check size={20} style={{ color: 'var(--accent)' }} /><span>สต็อกทุกรายการปกติ</span></div>
+            <div className="card-empty"><I.Check size={20} style={{ color: 'var(--accent)' }} /><span>{t('dashboard.alerts_empty')}</span></div>
           ) : (
             <div className="alert-list">
               {stats.alerts.map(p => (
@@ -118,7 +132,7 @@ export default function DashboardPage() {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <StatusBadge status={statusOf(p)} />
-                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>เหลือ {p.stock} / ขั้นต่ำ {p.min_stock}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{t('common.items')}: {p.stock} / {t('common.min')}: {p.min_stock}</div>
                   </div>
                 </div>
               ))}
@@ -128,11 +142,11 @@ export default function DashboardPage() {
 
         <section className="card">
           <div className="card-header">
-            <h2 className="card-title"><I.History size={14} /> เคลื่อนไหวล่าสุด</h2>
-            <Link to="/movements" className="btn btn-ghost" style={{ fontSize: 12, padding: '3px 8px' }}>ดูทั้งหมด</Link>
+            <h2 className="card-title"><I.History size={14} /> {t('dashboard.movements_title')}</h2>
+            <Link to="/movements" className="btn btn-ghost" style={{ fontSize: 12, padding: '3px 8px' }}>{t('common.all')}</Link>
           </div>
           {moves.length === 0 ? (
-            <div className="card-empty"><I.History size={20} /><span>ยังไม่มีประวัติการเคลื่อนไหว</span></div>
+            <div className="card-empty"><I.History size={20} /><span>{t('dashboard.movements_empty')}</span></div>
           ) : (
             <div className="move-list">
               {moves.map(m => (
@@ -177,5 +191,14 @@ function StatCard({ label, value, unit, icon: Icon, color = 140, alert }) {
         {unit && <span className="stat-unit">{unit}</span>}
       </div>
     </div>
+  )
+}
+
+function QuickAction({ icon: Icon, label, to }) {
+  return (
+    <Link to={to} className="dash-qa-btn">
+      <Icon size={24} />
+      <span>{label}</span>
+    </Link>
   )
 }

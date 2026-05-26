@@ -5,22 +5,50 @@ import { useAuth } from '../contexts/AuthContext'
 import { useT } from '../i18n'
 import { membershipRoleLabel } from '../lib/perms'
 
-const NAV = [
-  { to: '/',                key: 'dashboard',        Icon: I.Dashboard, end: true },
-  { to: '/stock',           key: 'stock',            Icon: I.Box },
-  { to: '/low',             key: 'low',              Icon: I.Alert,   alert: true },
-  { to: '/movements',       key: 'movements',        Icon: I.History },
-  { to: '/categories',      key: 'categories',       Icon: I.Tag },
-  { to: '/suppliers',       key: 'suppliers',        Icon: I.Truck },
-  { to: '/customers',       key: 'customers',        Icon: I.User },
-  { to: '/purchase-orders', key: 'purchase_orders',  Icon: I.Truck, perm: 'perm_receive' },
-]
-const SYSTEM = [
-  { to: '/finance',    key: 'finance',    Icon: I.Wallet },
-  { to: '/settlement', key: 'settlement', Icon: I.Lock,    perm: 'perm_settle' },
-  { to: '/calendar',   key: 'calendar',   Icon: I.Calendar },
-  { to: '/reports',    key: 'reports',    Icon: I.Chart },
-  { to: '/settings',   key: 'settings',   Icon: I.Gear },
+const SECTIONS = [
+  {
+    labelKey: null,
+    items: [
+      { to: '/', key: 'dashboard', Icon: I.Dashboard, end: true },
+    ],
+  },
+  {
+    labelKey: 'section_stock',
+    items: [
+      { to: '/stock',       key: 'stock',        Icon: I.Box },
+      { to: '/low',         key: 'low',          Icon: I.Alert,   alert: true },
+      { to: '/movements',   key: 'movements',    Icon: I.History },
+      { to: '/categories',  key: 'categories',   Icon: I.Tag },
+    ],
+  },
+  {
+    labelKey: 'section_partners',
+    items: [
+      { to: '/suppliers',   key: 'suppliers',    Icon: I.Truck },
+      { to: '/customers',   key: 'customers',    Icon: I.User },
+    ],
+  },
+  {
+    labelKey: 'section_operations',
+    items: [
+      { to: '/purchase-orders', key: 'purchase_orders', Icon: I.Truck, perm: 'perm_receive' },
+      { to: '/calendar',        key: 'calendar',        Icon: I.Calendar },
+    ],
+  },
+  {
+    labelKey: 'section_finance',
+    items: [
+      { to: '/finance',    key: 'finance',    Icon: I.Wallet },
+      { to: '/settlement', key: 'settlement', Icon: I.Lock,    perm: 'perm_settle' },
+      { to: '/reports',    key: 'reports',    Icon: I.Chart },
+    ],
+  },
+  {
+    labelKey: 'section_system',
+    items: [
+      { to: '/settings',   key: 'settings',   Icon: I.Gear },
+    ],
+  },
 ]
 
 export default function Sidebar({ open, lowCount, onClose }) {
@@ -46,45 +74,43 @@ export default function Sidebar({ open, lowCount, onClose }) {
       </div>
 
       <nav className="nav" onClick={onClose}>
-        <div className="nav-section-label">{t('nav.section_general')}</div>
-        {NAV.map(({ to, key, Icon, end, alert, perm }) => {
-          if (perm && !isSuperAdmin && !perms?.[perm]) return null
-          return (
-            <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-              <Icon size={15} />
-              <span>{t(`nav.${key}`)}</span>
-              {alert && lowCount > 0 && (
-                <span className="nav-count" style={{ color: 'var(--amber-ink)', background: 'var(--amber-soft)' }}>
-                  {lowCount}
-                </span>
-              )}
-            </NavLink>
-          )
-        })}
-        <div className="nav-section-label">{t('nav.section_system')}</div>
-        {SYSTEM.map(({ to, key, Icon, perm }) => {
-          if (perm && !isSuperAdmin && !perms?.[perm]) return null
-          return (
-            <NavLink key={to} to={to} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-              <Icon size={15} />
-              <span>{t(`nav.${key}`)}</span>
-            </NavLink>
-          )
-        })}
-      </nav>
+        {SECTIONS.map((section) => (
+          <div key={section.labelKey || 'dashboard'} className="nav-group">
+            {section.labelKey && <div className="nav-section-label">{t(`nav.${section.labelKey}`)}</div>}
+            {section.items.map(({ to, key, Icon, end, alert, perm }) => {
+              if (perm && !isSuperAdmin && !perms?.[perm]) return null
+              return (
+                <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  <Icon size={15} />
+                  <span>{t(`nav.${key}`)}</span>
+                  {alert && lowCount > 0 && (
+                    <span className="nav-count" style={{ color: 'var(--amber-ink)', background: 'var(--amber-soft)' }}>
+                      {lowCount}
+                    </span>
+                  )}
+                </NavLink>
+              )
+            })}
+          </div>
+        ))}
 
-      {isSuperAdmin && (
-        <NavLink to="/admin" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={{ margin: '0 8px 4px' }}>
-          <I.Gear size={15} />
-          <span>{t('nav.admin_panel')}</span>
-        </NavLink>
-      )}
-      {(isSuperAdmin || stores.some(s => s.role === 'store_admin')) && (
-        <NavLink to="/audit" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={{ margin: '0 8px 4px' }}>
-          <I.History size={15} />
-          <span>{t('nav.audit_log')}</span>
-        </NavLink>
-      )}
+        {(isSuperAdmin || (isSuperAdmin || stores.some(s => s.role === 'store_admin'))) && (
+          <div className="nav-group" style={{ marginTop: 8 }}>
+            {isSuperAdmin && (
+              <NavLink to="/admin" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <I.Gear size={15} />
+                <span>{t('nav.admin_panel')}</span>
+              </NavLink>
+            )}
+            {(isSuperAdmin || stores.some(s => s.role === 'store_admin')) && (
+              <NavLink to="/audit" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <I.History size={15} />
+                <span>{t('nav.audit_log')}</span>
+              </NavLink>
+            )}
+          </div>
+        )}
+      </nav>
       <div style={{ display: 'flex', gap: 12, padding: '6px 16px 4px', fontSize: 11, color: 'var(--muted)' }}>
         <Link to="/terms" style={{ color: 'var(--muted)', textDecoration: 'none' }} onClick={onClose}>{t('nav.terms')}</Link>
         <Link to="/privacy" style={{ color: 'var(--muted)', textDecoration: 'none' }} onClick={onClose}>{t('nav.privacy')}</Link>
