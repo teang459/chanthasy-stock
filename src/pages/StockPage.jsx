@@ -7,10 +7,11 @@ import { statusOf, fmtCurrency, generateSKU, downloadCSV, statusLabel } from '..
 import { userMessage } from '../lib/errors'
 import { compressImage, storagePath, MAX_IMAGE_BYTES } from '../lib/image'
 import { useCurrency } from '../contexts/CurrencyContext'
+import { useT } from '../i18n'
 import Modal from '../components/Modal'
 import Confirm from '../components/Confirm'
 import Spinner from '../components/Spinner'
-import { SkeletonTable } from '../components/Skeleton'
+import { SkeletonBox } from '../components/Skeleton'
 import EmptyState from '../components/EmptyState'
 import StatusBadge from '../components/StatusBadge'
 import StockBar from '../components/StockBar'
@@ -26,6 +27,7 @@ const BulkImport     = lazy(() => import('../components/BulkImport'))
 export default function StockPage() {
   const { toast } = useToast()
   const { user, ownerId, perms } = useAuth()
+  const t = useT()
   // perm_manage_plants gates plant CRUD; adjust/sell/receive flags gate the stock-adjust modal.
   const canWrite  = perms.perm_manage_plants
   const canDelete = perms.perm_manage_plants
@@ -40,8 +42,6 @@ export default function StockPage() {
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState(location.state?.search ?? '')
   const [catFilter, setCatFilter] = useState('')
-  const [sortField, setSortField] = useState('name')
-  const [sortDir, setSortDir]     = useState('asc')
 
   const [showForm, setShowForm]     = useState(false)
   const [editItem, setEditItem]     = useState(null)
@@ -242,11 +242,6 @@ export default function StockPage() {
     }
   }
 
-  function toggleSort(field) {
-    setSortDir(d => sortField === field ? (d === 'asc' ? 'desc' : 'asc') : 'asc')
-    setSortField(field)
-  }
-
   const filtered = useMemo(() => {
     let list = [...plants]
     if (search) {
@@ -254,15 +249,11 @@ export default function StockPage() {
       list = list.filter(p => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.name_sci?.toLowerCase().includes(q))
     }
     if (catFilter) list = list.filter(p => p.category_id === catFilter)
-    list.sort((a, b) => {
-      const av = a[sortField] ?? '', bv = b[sortField] ?? ''
-      const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv), 'th')
-      return sortDir === 'asc' ? cmp : -cmp
-    })
+    list.sort((a, b) => String(a.name).localeCompare(String(b.name), 'th'))
     return list
-  }, [plants, search, catFilter, sortField, sortDir])
+  }, [plants, search, catFilter])
 
-  useEffect(() => { setPage(0) }, [search, catFilter, sortField, sortDir])
+  useEffect(() => { setPage(0) }, [search, catFilter])
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
   const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
@@ -276,20 +267,27 @@ export default function StockPage() {
     toast.success('ส่งออก CSV สำเร็จ')
   }
 
-  const SortIcon = ({ f }) => sortField === f
-    ? (sortDir === 'asc' ? <I.ArrowU size={10} /> : <I.ArrowD size={10} />)
-    : null
-
   if (loading) {
     return (
       <div className="page">
         <div className="page-header">
           <div>
-            <h1 className="page-title">รายการสต็อก</h1>
-            <p className="page-sub">กำลังโหลด...</p>
+            <h1 className="page-title">{t('stock.page_title')}</h1>
+            <p className="page-sub">{t('common.loading')}</p>
           </div>
         </div>
-        <SkeletonTable rows={8} cols={7} />
+        <div className="plant-grid">
+          {Array.from({length: 8}, (_, i) => (
+            <div key={i} className="plant-card-skeleton">
+              <SkeletonBox height={160} />
+              <div style={{padding:14, display:'flex', flexDirection:'column', gap:8}}>
+                <SkeletonBox height={14} width="70%" />
+                <SkeletonBox height={11} width="50%" />
+                <SkeletonBox height={11} width="30%" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -298,98 +296,102 @@ export default function StockPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1 className="page-title">รายการสต็อก</h1>
+          <h1 className="page-title">{t('stock.page_title')}</h1>
           <p className="page-sub">
-            {filtered.length} รายการ
-            {totalPages > 1 && ` · หน้า ${page + 1}/${totalPages}`}
+            {filtered.length} {t('common.items')}
+            {totalPages > 1 && ` · ${page + 1}/${totalPages}`}
           </p>
         </div>
         <div className="page-actions">
-          <button className="btn btn-ghost" onClick={handleExport}><I.Download size={13} /> ส่งออก</button>
-          {canWrite && <button className="btn btn-ghost" onClick={() => setShowImport(true)}><I.Upload size={13} /> นำเข้า CSV</button>}
-          {canWrite && <button className="btn btn-primary" onClick={openAdd}><I.Plus size={13} /> เพิ่มต้นไม้</button>}
+          <button className="btn btn-ghost" onClick={handleExport}><I.Download size={13} /> {t('common.export')}</button>
+          {canWrite && <button className="btn btn-ghost" onClick={() => setShowImport(true)}><I.Upload size={13} /> {t('stock.import_csv')}</button>}
+          {canWrite && <button className="btn btn-primary" onClick={openAdd}><I.Plus size={13} /> {t('stock.add_plant')}</button>}
         </div>
       </div>
 
       <div className="filters">
         <div className="search-wrap">
           <I.Search size={13} className="search-icon" />
-          <input placeholder="ค้นหา SKU, ชื่อ…" value={search} onChange={e => setSearch(e.target.value)} />
+          <input placeholder={t('stock.search_placeholder')} value={search} onChange={e => setSearch(e.target.value)} />
           {search && <button className="search-clear" onClick={() => setSearch('')}><I.X size={12} /></button>}
         </div>
         <button
           type="button"
           className="btn btn-ghost"
           onClick={() => setShowScanner(true)}
-          aria-label="สแกน Barcode"
-          title="สแกน Barcode / QR"
+          aria-label={t('stock.scan')}
+          title={t('stock.scan')}
         >
-          <I.QrCode size={14} /> สแกน
+          <I.QrCode size={14} /> {t('stock.scan')}
         </button>
         <select value={catFilter} onChange={e => setCatFilter(e.target.value)}>
-          <option value="">ทุกหมวดหมู่</option>
+          <option value="">{t('stock.cat_all')}</option>
           {cats.map(c => <option key={c.id} value={c.id}>{c.name_th}</option>)}
         </select>
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState title="ไม่พบรายการ" desc={search ? 'ลองเปลี่ยนคำค้นหา' : 'เริ่มเพิ่มต้นไม้รายการแรก'} action={!search ? { label:'เพิ่มต้นไม้', onClick: openAdd } : undefined} />
+        <EmptyState title={t('stock.empty_title')} desc={search ? t('stock.empty_desc_search') : t('stock.empty_desc_first')} action={!search ? { label: t('stock.add_plant'), onClick: openAdd } : undefined} />
       ) : (
-        <div className="table-wrap">
-          <table>
-            <thead><tr>
-              <th style={{ width: 44 }}></th>
-              <th className="sortable" onClick={() => toggleSort('sku')}>SKU <SortIcon f="sku" /></th>
-              <th className="sortable" onClick={() => toggleSort('name')}>ชื่อต้นไม้ <SortIcon f="name" /></th>
-              <th>หมวดหมู่</th>
-              <th className="sortable" onClick={() => toggleSort('stock')}>สต็อก <SortIcon f="stock" /></th>
-              <th className="sortable" onClick={() => toggleSort('price')}>ราคา <SortIcon f="price" /></th>
-              <th>สถานะ</th>
-              <th style={{ width: 90 }}>จัดการ</th>
-            </tr></thead>
-            <tbody>
-              {paged.map(p => (
-                <tr key={p.id}>
-                  <td>
-                    {p.image_url
-                      ? <img src={p.image_url} alt={p.name} style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', display: 'block' }} />
-                      : <div style={{ width: 36, height: 36, borderRadius: 6, background: 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🌿</div>
-                    }
-                  </td>
-                  <td className="mono text-sm">{p.sku}</td>
-                  <td>
-                    <div className="plant-name">{p.name}</div>
-                    {p.name_sci && <div className="plant-sci">{p.name_sci}</div>}
-                  </td>
-                  <td>
-                    {p.categories && (
-                      <span className="badge" style={{ background:`oklch(95% 0.03 ${p.categories.hue})`, color:`oklch(35% 0.08 ${p.categories.hue})`, borderColor:'transparent' }}>
-                        {p.categories.name_th}
-                      </span>
+        <div className="plant-grid">
+          {paged.map(p => {
+            const status = statusOf(p)
+            return (
+              <div key={p.id} className={`plant-card${status !== 'ok' ? ` plant-card--${status}` : ''}`}>
+                {p.image_url
+                  ? <img className="plant-card__img" src={p.image_url} alt={p.name} />
+                  : <div className="plant-card__img-ph">🌿</div>
+                }
+                <div className="plant-card__body">
+                  <div className="plant-card__name">{p.name}</div>
+                  {p.name_sci && <div className="plant-card__sci">{p.name_sci}</div>}
+                  <div className="plant-card__sku">{p.sku}</div>
+                  <div className="plant-card__meta">
+                    <span className="plant-card__price">{fmtCurrency(p.price)} {symbol}</span>
+                    <StatusBadge status={status} />
+                  </div>
+                </div>
+                <div className="plant-card__stock">
+                  <StockBar plant={p} />
+                </div>
+                <div className="plant-card__footer">
+                  {p.categories ? (
+                    <span className="badge" style={{
+                      background:`oklch(95% 0.03 ${p.categories.hue})`,
+                      color:`oklch(35% 0.08 ${p.categories.hue})`,
+                      borderColor:'transparent', fontSize:10
+                    }}>{p.categories.name_th}</span>
+                  ) : <span />}
+                  <div className="plant-card__actions">
+                    {canAdjust && (
+                      <button className="icon-btn" title={t('common.adjust')}
+                        onClick={() => { setAdjItem(p); setAdjForm({type:'in',qty:1,note:'',payment:'cash',customer_id:''}) }}>
+                        <I.Adjust size={13}/>
+                      </button>
                     )}
-                  </td>
-                  <td><StockBar plant={p} /></td>
-                  <td className="mono">{fmtCurrency(p.price)} {symbol}</td>
-                  <td><StatusBadge status={statusOf(p)} /></td>
-                  <td>
-                    <div className="row-actions">
-                      {canAdjust && <button className="icon-btn" title="ปรับสต็อก" onClick={() => { setAdjItem(p); setAdjForm({ type:'in',qty:1,note:'',payment:'cash',customer_id:'' }) }}><I.Adjust size={13} /></button>}
-                      {canWrite && <button className="icon-btn" title="แก้ไข" onClick={() => openEdit(p)}><I.Edit size={13} /></button>}
-                      {canDelete && <button className="icon-btn danger" title="ลบ" onClick={() => setDelItem(p)}><I.Trash size={13} /></button>}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    {canWrite && (
+                      <button className="icon-btn" title={t('common.edit')} onClick={() => openEdit(p)}>
+                        <I.Edit size={13}/>
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button className="icon-btn danger" title={t('common.delete')} onClick={() => setDelItem(p)}>
+                        <I.Trash size={13}/>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 
       {totalPages > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 16 }}>
-          <button className="btn btn-ghost" disabled={page === 0} onClick={() => setPage(p => p - 1)}>← ก่อนหน้า</button>
+          <button className="btn btn-ghost" disabled={page === 0} onClick={() => setPage(p => p - 1)}>← {t('common.back')}</button>
           <span style={{ fontSize: 13, color: 'var(--muted)' }}>{page + 1} / {totalPages}</span>
-          <button className="btn btn-ghost" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>ถัดไป →</button>
+          <button className="btn btn-ghost" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>{t('common.next')} →</button>
         </div>
       )}
 

@@ -16,6 +16,30 @@ vi.mock('../contexts/ToastContext',  () => ({
 vi.mock('../contexts/CurrencyContext', () => ({
   useCurrency: () => ({ symbol: '฿', currency: 'THB' }),
 }))
+vi.mock('../i18n', () => ({
+  useT: () => (key, params) => {
+    const translations = {
+      'stock.page_title': 'รายการสต็อก',
+      'common.loading': 'กำลังโหลด...',
+      'common.items': 'รายการ',
+      'common.export': 'ส่งออก',
+      'stock.import_csv': 'นำเข้า CSV',
+      'stock.add_plant': 'เพิ่มต้นไม้',
+      'stock.search_placeholder': 'ค้นหา SKU, ชื่อ…',
+      'stock.scan': 'สแกน',
+      'stock.cat_all': 'ทุกหมวดหมู่',
+      'stock.empty_title': 'ไม่พบรายการ',
+      'stock.empty_desc_search': 'ลองเปลี่ยนคำค้นหา',
+      'stock.empty_desc_first': 'เริ่มเพิ่มต้นไม้รายการแรก',
+      'common.back': 'ย้อนกลับ',
+      'common.next': 'ถัดไป',
+      'common.adjust': 'ปรับสต็อก',
+      'common.edit': 'แก้ไข',
+      'common.delete': 'ลบ',
+    }
+    return translations[key] || key
+  },
+}))
 
 import StockPage from './StockPage'
 

@@ -27,6 +27,7 @@ export default {
     units: 'หน่วย',
     actions: 'การดำเนินการ',
     min: 'ขั้นต่ำ',
+    adjust: 'ปรับสต็อก',
   },
 
   status: {

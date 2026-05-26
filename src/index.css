@@ -680,6 +680,70 @@ tbody tr:hover { background: var(--surface-2) }
 .hue-btn.active { border-color:var(--text); box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--text) }
 
 /* ============================================================
+   PLANT CARD GRID (Stock page)
+   ============================================================ */
+.plant-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  gap:16px;
+  margin-top:16px;
+}
+.plant-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-sm);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;
+}
+.plant-card:hover { transform:translateY(-3px); box-shadow:var(--shadow) }
+.plant-card--low { border-color:var(--amber) }
+.plant-card--out { border-color:var(--danger) }
+
+.plant-card__img {
+  width:100%; height:160px; object-fit:cover; display:block;
+}
+.plant-card__img-ph {
+  width:100%; height:160px;
+  background:var(--surface-2);
+  display:flex; align-items:center; justify-content:center;
+  font-size:40px; color:var(--muted);
+}
+.plant-card__body {
+  padding:12px 14px 6px; flex:1;
+  display:flex; flex-direction:column; gap:4px;
+}
+.plant-card__name {
+  font-size:14px; font-weight:600; line-height:1.3;
+  display:-webkit-box; -webkit-line-clamp:2;
+  -webkit-box-orient:vertical; overflow:hidden;
+}
+.plant-card__sci { font-size:11px; color:var(--muted); font-style:italic }
+.plant-card__sku { font-size:10px; color:var(--muted); font-family:monospace }
+.plant-card__meta {
+  display:flex; align-items:center; justify-content:space-between;
+  gap:6px; margin-top:4px;
+}
+.plant-card__price { font-size:15px; font-weight:700 }
+.plant-card__stock { padding:4px 14px 8px }
+.plant-card__footer {
+  padding:8px 10px;
+  border-top:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between; gap:6px;
+}
+.plant-card__actions { display:flex; gap:4px }
+.plant-card-skeleton {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius-lg); overflow:hidden;
+}
+@media (max-width:480px) {
+  .plant-grid { grid-template-columns:repeat(2,1fr); gap:10px }
+  .plant-card__img, .plant-card__img-ph { height:120px }
+}
+
+/* ============================================================
    ALERT SECTION (LowStock)
    ============================================================ */
 .alert-section { margin-bottom:24px }

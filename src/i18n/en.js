@@ -27,6 +27,7 @@ export default {
     units: 'units',
     actions: 'Actions',
     min: 'Min',
+    adjust: 'Adjust stock',
   },
 
   status: {
