@@ -14,9 +14,10 @@ export default function DashboardPage() {
   const { symbol } = useCurrency()
   const { ownerId } = useAuth()
   const t = useT()
-  const [plants, setPlants]    = useState([])
-  const [moves, setMoves]      = useState([])
-  const [loading, setLoading]  = useState(true)
+  const [plants, setPlants]      = useState([])
+  const [moves, setMoves]        = useState([])
+  const [loading, setLoading]    = useState(true)
+  const [settlementClosed, setSettlementClosed] = useState(null)
 
   useEffect(() => {
     fetchAll()
@@ -30,12 +31,15 @@ export default function DashboardPage() {
 
   async function fetchAll() {
     if (!ownerId) return
-    const [{ data: p }, { data: m }] = await Promise.all([
+    const today = new Date().toISOString().split('T')[0]
+    const [{ data: p }, { data: m }, { data: settlement }] = await Promise.all([
       supabase.from('plants').select('*,categories(name_th,hue)').eq('store_id', ownerId),
       supabase.from('movements').select('*,plants(name,sku)').eq('store_id', ownerId).order('created_at', { ascending: false }).limit(10),
+      supabase.from('daily_settlements').select('closed_at').eq('store_id', ownerId).eq('business_date', today).single(),
     ])
     setPlants(p ?? [])
     setMoves(m ?? [])
+    setSettlementClosed(settlement?.closed_at !== null && settlement?.closed_at !== undefined)
     setLoading(false)
   }
 
@@ -110,7 +114,11 @@ export default function DashboardPage() {
 
       <div className="dash-quick-actions">
         <QuickAction icon={I.Box}     label={t('dashboard.action_adjust_stock')} to="/stock" />
-        <QuickAction icon={I.Wallet}  label={t('dashboard.action_settlement')} to="/settlement" />
+        <QuickAction
+          icon={I.Wallet}
+          label={settlementClosed ? t('dashboard.action_close_settlement') : t('dashboard.action_open_settlement')}
+          to="/settlement"
+        />
         <QuickAction icon={I.Truck}   label={t('dashboard.action_purchase_order')} to="/purchase-orders" />
       </div>
 
