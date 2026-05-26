@@ -1,4 +1,27 @@
 -- ====================================================
+-- Fix: handle_new_user trigger inserts role='staff' but the post-Phase-C
+-- profiles_role_check only allows ('super_admin','member'). Every new
+-- auth.users insert blows up with "Database error creating new user",
+-- which surfaces from auth.admin.createUser via the admin-manage-users
+-- Edge Function. Realign with the role enum.
+-- ====================================================
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $handle$
+BEGIN
+  INSERT INTO public.profiles (id, name, role, initials)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+    'member',
+    upper(left(split_part(NEW.email, '@', 1), 2))
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$handle$;
+
+-- ====================================================
 -- Fix: audit triggers crash store deletes with FK 23503
 --
 -- audit_stores_trigger fires AFTER DELETE on stores. At that point the
