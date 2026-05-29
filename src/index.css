@@ -327,13 +327,40 @@ tbody tr:hover { background: var(--surface-2) }
 .plant-name { font-weight: 500 }
 .plant-sci  { font-size: 11px; color: var(--muted); font-style: italic }
 .mono       { font-family: 'IBM Plex Mono'; letter-spacing: .02em }
+.text-xs    { font-size: 11px }
 .text-sm    { font-size: 12px }
+.text-md    { font-size: 13px }
 .muted      { color: var(--muted) }
 .text-green { color: var(--accent) }
-.text-red   { color: var(--danger) }
+.text-red   { color: var(--danger, #dc2626) }
+.text-right { text-align: right }
+.text-left  { text-align: left }
+.text-center{ text-align: center }
+.fw-500     { font-weight: 500 }
+.fw-600     { font-weight: 600 }
+.no-m       { margin: 0 }
+
+/* Flex helpers — short names because they repeat in 100s of places */
+.row-end    { display: flex; gap: 8px; justify-content: flex-end }
+.row-end-sm { display: flex; gap: 6px; justify-content: flex-end }
+.row-between{ display: flex; align-items: center; justify-content: space-between }
 
 .row-actions { display:flex; gap:4px }
 .clickable   { cursor:pointer }
+
+/* Small / extra-small button modifiers — replace the inline
+   style={{ fontSize: 12, padding: '4px 8px' }} pattern that's
+   peppered across AdminPage / PurchaseOrdersPage row actions. */
+.btn-sm { font-size: 12px; padding: 4px 8px }
+.btn-xs { font-size: 11px; padding: 3px 6px }
+
+/* Expanded-row body in tables (replaces inline
+   background: var(--bg); padding: 12px 16px on td/colSpan). */
+.expanded-cell { background: var(--bg); padding: 12px 16px }
+
+/* Vertical stack form layout — repeated form structure across
+   AdminPage modals, common in member / store / sub forms. */
+.form-col { display: flex; flex-direction: column; gap: 12px }
 
 /* ============================================================
    BADGES & STATUS

@@ -150,29 +150,29 @@ export default function AdminPage() {
                   <tr>
                     <td className="mono">{s.code}</td>
                     <td>
-                      <div style={{ fontWeight: 500 }}>{s.name}</div>
-                      {s.tax_id && <div className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>{s.tax_id}</div>}
+                      <div className="fw-500">{s.name}</div>
+                      {s.tax_id && <div className="mono text-xs muted">{s.tax_id}</div>}
                     </td>
                     <td className="mono">{members.length}</td>
                     <td className="mono">{plantCount[s.id] ?? 0}</td>
                     <td><span className={`badge ${s.active ? 'badge--info' : ''}`}>{s.active ? 'ใช้งาน' : 'ปิด'}</span></td>
-                    <td className="mono" style={{ fontSize: 12 }}>
+                    <td className="mono text-sm">
                       {Number(s.vat_rate) > 0 ? `${s.vat_rate}% ${s.vat_inclusive ? 'รวม' : 'แยก'}` : '—'}
                     </td>
                     <td>
-                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                        <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px' }} onClick={() => viewStore(s.id)}>ดูร้าน</button>
-                        <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px' }} onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}>
+                      <div className="row-end-sm">
+                        <button className="btn btn-ghost btn-sm" onClick={() => viewStore(s.id)}>ดูร้าน</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}>
                           {expandedId === s.id ? 'ซ่อน' : 'สมาชิก'}
                         </button>
-                        <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px' }} onClick={() => setEditingStore(s)}>แก้ไข</button>
-                        <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px', color: 'var(--danger, #dc2626)' }} onClick={() => setDeletingStore(s)}>ลบ</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setEditingStore(s)}>แก้ไข</button>
+                        <button className="btn btn-ghost btn-sm text-red" onClick={() => setDeletingStore(s)}>ลบ</button>
                       </div>
                     </td>
                   </tr>
                   {expandedId === s.id && (
                     <tr>
-                      <td colSpan={7} style={{ background: 'var(--bg)', padding: '12px 16px' }}>
+                      <td colSpan={7} className="expanded-cell">
                         <MembersPanel
                           store={s}
                           members={members}
@@ -240,10 +240,10 @@ export default function AdminPage() {
           <p style={{ margin: '0 0 6px' }}>
             ลบสาขา <strong>{deletingStore.name}</strong> ({deletingStore.code})?
           </p>
-          <p style={{ fontSize: 12, color: 'var(--danger, #dc2626)', margin: '0 0 16px' }}>
+          <p className="text-sm text-red" style={{ margin: '0 0 16px' }}>
             ⚠ ข้อมูลทั้งหมดของสาขานี้ (ต้นไม้, movements, finance, settlement, members) จะถูกลบถาวร
           </p>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <div className="row-end">
             <button className="btn btn-ghost" onClick={() => setDeletingStore(null)}>ยกเลิก</button>
             <button className="btn btn-danger" onClick={() => deleteStore(deletingStore)}>ลบถาวร</button>
           </div>
@@ -273,8 +273,8 @@ export default function AdminPage() {
       {removingMember && (
         <Modal title="ยืนยันการลบสมาชิก" onClose={() => setRemovingMember(null)} size="sm">
           <p>ลบ <strong>{emails[removingMember.member.user_id] || removingMember.member.user_id.slice(0, 8)}</strong> ออกจากสาขานี้?</p>
-          <p style={{ fontSize: 12, color: 'var(--muted)', margin: '8px 0 16px' }}>บัญชี user จะไม่ถูกลบ — แค่ถอนสิทธิ์การเข้าถึงสาขาเท่านั้น</p>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <p className="text-sm muted" style={{ margin: '8px 0 16px' }}>บัญชี user จะไม่ถูกลบ — แค่ถอนสิทธิ์การเข้าถึงสาขาเท่านั้น</p>
+          <div className="row-end">
             <button className="btn btn-ghost" onClick={() => setRemovingMember(null)}>ยกเลิก</button>
             <button
               className="btn btn-danger"
@@ -295,21 +295,21 @@ export default function AdminPage() {
 function MembersPanel({ store, members, emails, onAdd, onEdit, onRemove, isSelf }) {
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <h3 style={{ margin: 0, fontSize: 14 }}>สมาชิกของ {store.name}</h3>
+      <div className="row-between" style={{ marginBottom: 10 }}>
+        <h3 className="no-m" style={{ fontSize: 14 }}>สมาชิกของ {store.name}</h3>
         <button className="btn btn-primary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={onAdd}>
           <I.Plus size={11} /> เพิ่มสมาชิก
         </button>
       </div>
       {members.length === 0 ? (
-        <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>ยังไม่มีสมาชิกในสาขานี้</p>
+        <p className="text-sm muted no-m">ยังไม่มีสมาชิกในสาขานี้</p>
       ) : (
         <table style={{ width: '100%', fontSize: 12 }}>
           <thead>
             <tr>
-              <th style={{ textAlign: 'left' }}>ผู้ใช้</th>
-              <th style={{ textAlign: 'left' }}>บทบาท</th>
-              <th style={{ textAlign: 'left' }}>สิทธิ์</th>
+              <th className="text-left">ผู้ใช้</th>
+              <th className="text-left">บทบาท</th>
+              <th className="text-left">สิทธิ์</th>
               <th></th>
             </tr>
           </thead>
@@ -323,11 +323,11 @@ function MembersPanel({ store, members, emails, onAdd, onEdit, onRemove, isSelf 
                 <td>
                   <PermsSummary member={m} />
                 </td>
-                <td style={{ textAlign: 'right' }}>
-                  <button className="btn btn-ghost" style={{ fontSize: 11, padding: '3px 6px' }} onClick={() => onEdit(m)}>แก้</button>
+                <td className="text-right">
+                  <button className="btn btn-ghost btn-xs" onClick={() => onEdit(m)}>แก้</button>
                   <button
                     className="btn btn-ghost"
-                    style={{ fontSize: 11, padding: '3px 6px', color: 'var(--danger, #dc2626)' }}
+                    className="btn btn-ghost btn-xs text-red"
                     onClick={() => onRemove(m)}
                     disabled={isSelf(m.user_id)}
                     title={isSelf(m.user_id) ? 'ลบบัญชีตัวเองไม่ได้' : ''}
@@ -346,8 +346,8 @@ function MembersPanel({ store, members, emails, onAdd, onEdit, onRemove, isSelf 
 
 function PermsSummary({ member }) {
   const granted = PERM_FLAGS.filter(p => member[p.key]).map(p => p.label)
-  if (granted.length === PERM_FLAGS.length) return <span style={{ color: 'var(--accent, #16a34a)' }}>ทั้งหมด</span>
-  if (granted.length === 0) return <span style={{ color: 'var(--muted)' }}>ไม่มีสิทธิ์</span>
+  if (granted.length === PERM_FLAGS.length) return <span className="text-green">ทั้งหมด</span>
+  if (granted.length === 0) return <span className="muted">ไม่มีสิทธิ์</span>
   return <span>{granted.join(', ')}</span>
 }
 
@@ -496,7 +496,7 @@ function AddMemberModal({ storeId, existingMemberUserIds, allUsers, onClose, onD
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <form onSubmit={handleSubmit} className="form-col">
         {mode === 'existing' ? (
           <Field label="ผู้ใช้" required>
             <select value={pickedUserId} onChange={e => setPickedUserId(e.target.value)}>
@@ -560,14 +560,14 @@ function EditMemberModal({ storeId, member, userLabel, onClose, onDone }) {
 
   return (
     <Modal title={`แก้ไขสมาชิก: ${userLabel}`} onClose={onClose}>
-      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <form onSubmit={handleSave} className="form-col">
         <Field label="บทบาท">
           <select value={role} onChange={e => applyRolePreset(e.target.value)}>
             {STORE_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
           </select>
         </Field>
         <PermsCheckboxGrid perms={perms} setPerms={setPerms} disabled={role === 'viewer'} />
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <div className="row-end">
           <button type="button" className="btn btn-ghost" onClick={onClose}>ยกเลิก</button>
           <button type="submit" className="btn btn-primary" disabled={busy}>
             {busy ? <Spinner size={13} color="#fff" /> : 'บันทึก'}
@@ -581,7 +581,7 @@ function EditMemberModal({ storeId, member, userLabel, onClose, onDone }) {
 function PermsCheckboxGrid({ perms, setPerms, disabled }) {
   return (
     <div>
-      <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>สิทธิ์ในสาขา</div>
+      <div className="text-sm muted" style={{ marginBottom: 6 }}>สิทธิ์ในสาขา</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
         {PERM_FLAGS.map(p => (
           <label key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, opacity: disabled ? 0.5 : 1 }}>

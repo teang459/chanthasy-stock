@@ -143,7 +143,7 @@ export default function PurchaseOrdersPage() {
               <th>วันที่</th>
               <th>ซัพพลายเออร์</th>
               <th>สถานะ</th>
-              <th style={{ textAlign: 'right' }}>มูลค่า</th>
+              <th className="text-right">มูลค่า</th>
               <th></th>
             </tr></thead>
             <tbody>
@@ -156,22 +156,22 @@ export default function PurchaseOrdersPage() {
                     <tr>
                       <td className="mono">{po.po_number}</td>
                       <td className="text-sm">{fmtDate(po.order_date)}</td>
-                      <td>{supplierMap[po.supplier_id]?.name ?? <span style={{ color: 'var(--muted)' }}>—</span>}</td>
+                      <td>{supplierMap[po.supplier_id]?.name ?? <span className="muted">—</span>}</td>
                       <td><span className={`badge ${STATUS_CLASS[po.status] ?? ''}`}>{STATUS_LABEL[po.status] ?? po.status}</span></td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{fmtCurrency(total)} {symbol}</td>
+                      <td className="mono text-right">{fmtCurrency(total)} {symbol}</td>
                       <td>
-                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                          <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px' }}
+                        <div className="row-end-sm">
+                          <button className="btn btn-ghost btn-sm"
                                   onClick={() => setExpandedId(expanded ? null : po.id)}>
                             {expanded ? 'ซ่อน' : `รายการ (${lines.length})`}
                           </button>
                           {canCancel && po.status !== 'cancelled' && po.status !== 'received' && (
-                            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px' }} onClick={() => setCancelTarget(po)}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => setCancelTarget(po)}>
                               ยกเลิก
                             </button>
                           )}
                           {(isSuperAdmin || perms.perm_manage_plants) && (
-                            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px', color: 'var(--danger, #dc2626)' }} onClick={() => setDeleteTarget(po)}>
+                            <button className="btn btn-ghost btn-sm text-red" onClick={() => setDeleteTarget(po)}>
                               ลบ
                             </button>
                           )}
@@ -180,7 +180,7 @@ export default function PurchaseOrdersPage() {
                     </tr>
                     {expanded && (
                       <tr>
-                        <td colSpan={6} style={{ background: 'var(--bg)', padding: '12px 16px' }}>
+                        <td colSpan={6} className="expanded-cell">
                           <POLinesPanel
                             po={po}
                             lines={lines}
@@ -189,7 +189,7 @@ export default function PurchaseOrdersPage() {
                             onReceive={(line) => setReceivingLine({ po, line })}
                           />
                           {po.note && (
-                            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>
+                            <div className="text-sm muted" style={{ marginTop: 8 }}>
                               หมายเหตุ: {po.note}
                             </div>
                           )}
@@ -252,12 +252,12 @@ function POLinesPanel({ po, lines, symbol, canReceive, onReceive }) {
     <table style={{ width: '100%', fontSize: 13 }}>
       <thead>
         <tr>
-          <th style={{ textAlign: 'left' }}>สินค้า</th>
-          <th style={{ textAlign: 'right' }}>สั่ง</th>
-          <th style={{ textAlign: 'right' }}>รับแล้ว</th>
-          <th style={{ textAlign: 'right' }}>คงเหลือ</th>
-          <th style={{ textAlign: 'right' }}>ต้นทุน/หน่วย</th>
-          <th style={{ textAlign: 'right' }}>มูลค่า</th>
+          <th className="text-left">สินค้า</th>
+          <th className="text-right">สั่ง</th>
+          <th className="text-right">รับแล้ว</th>
+          <th className="text-right">คงเหลือ</th>
+          <th className="text-right">ต้นทุน/หน่วย</th>
+          <th className="text-right">มูลค่า</th>
           <th></th>
         </tr>
       </thead>
@@ -268,18 +268,18 @@ function POLinesPanel({ po, lines, symbol, canReceive, onReceive }) {
             <tr key={l.id}>
               <td>
                 <div>{l.plant_name}</div>
-                {l.plant_sku && <div className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>{l.plant_sku}</div>}
+                {l.plant_sku && <div className="mono text-xs muted">{l.plant_sku}</div>}
               </td>
-              <td className="mono" style={{ textAlign: 'right' }}>{l.qty_ordered}</td>
-              <td className="mono" style={{ textAlign: 'right' }}>{l.qty_received}</td>
-              <td className="mono" style={{ textAlign: 'right', color: remaining > 0 ? 'var(--warning, #ca8a04)' : 'var(--accent, #16a34a)' }}>{remaining}</td>
-              <td className="mono" style={{ textAlign: 'right' }}>{Number(l.unit_cost).toFixed(2)} {symbol}</td>
-              <td className="mono" style={{ textAlign: 'right' }}>
+              <td className="mono text-right">{l.qty_ordered}</td>
+              <td className="mono text-right">{l.qty_received}</td>
+              <td className="mono text-right" style={{ color: remaining > 0 ? 'var(--warning, #ca8a04)' : 'var(--accent, #16a34a)' }}>{remaining}</td>
+              <td className="mono text-right">{Number(l.unit_cost).toFixed(2)} {symbol}</td>
+              <td className="mono text-right">
                 {(Number(l.qty_ordered) * Number(l.unit_cost)).toFixed(2)} {symbol}
               </td>
-              <td style={{ textAlign: 'right' }}>
+              <td className="text-right">
                 {canReceive && remaining > 0 && (po.status === 'submitted' || po.status === 'partial') && (
-                  <button className="btn btn-primary" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => onReceive(l)}>
+                  <button className="btn btn-primary btn-xs" onClick={() => onReceive(l)}>
                     รับเข้า
                   </button>
                 )}
@@ -371,8 +371,8 @@ function CreatePOModal({ storeId, plants, suppliers, symbol, onClose, onDone }) 
         </div>
 
         <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <strong style={{ fontSize: 13 }}>รายการสินค้า</strong>
-          <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={addRow}>
+          <strong className="text-md">รายการสินค้า</strong>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={addRow}>
             <I.Plus size={11} /> เพิ่มรายการ
           </button>
         </div>
@@ -381,16 +381,16 @@ function CreatePOModal({ storeId, plants, suppliers, symbol, onClose, onDone }) 
           <table style={{ width: '100%', fontSize: 12 }}>
             <thead style={{ background: 'var(--bg)' }}>
               <tr>
-                <th style={{ textAlign: 'left' }}>สินค้า</th>
-                <th style={{ width: 90, textAlign: 'right' }}>จำนวน</th>
-                <th style={{ width: 120, textAlign: 'right' }}>ต้นทุน/หน่วย</th>
-                <th style={{ width: 120, textAlign: 'right' }}>รวม</th>
+                <th className="text-left">สินค้า</th>
+                <th className="text-right" style={{ width: 90 }}>จำนวน</th>
+                <th className="text-right" style={{ width: 120 }}>ต้นทุน/หน่วย</th>
+                <th className="text-right" style={{ width: 120 }}>รวม</th>
                 <th style={{ width: 40 }}></th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={5} style={{ padding: 16, textAlign: 'center', color: 'var(--muted)' }}>กดปุ่ม "เพิ่มรายการ" เพื่อเริ่ม</td></tr>
+                <tr><td colSpan={5} className="text-center muted" style={{ padding: 16 }}>กดปุ่ม "เพิ่มรายการ" เพื่อเริ่ม</td></tr>
               ) : rows.map((r, i) => (
                 <tr key={i}>
                   <td>
@@ -401,7 +401,7 @@ function CreatePOModal({ storeId, plants, suppliers, symbol, onClose, onDone }) 
                   </td>
                   <td><input type="number" min="1" value={r.qty} onChange={e => setRow(i, 'qty', e.target.value)} style={{ width: '100%', textAlign: 'right' }} /></td>
                   <td><input type="number" min="0" step="0.01" value={r.unit_cost} onChange={e => setRow(i, 'unit_cost', e.target.value)} style={{ width: '100%', textAlign: 'right' }} /></td>
-                  <td className="mono" style={{ textAlign: 'right' }}>{(Number(r.qty) * Number(r.unit_cost)).toFixed(2)}</td>
+                  <td className="mono text-right">{(Number(r.qty) * Number(r.unit_cost)).toFixed(2)}</td>
                   <td><button type="button" className="icon-btn danger" onClick={() => removeRow(i)}><I.X size={12} /></button></td>
                 </tr>
               ))}
@@ -409,8 +409,8 @@ function CreatePOModal({ storeId, plants, suppliers, symbol, onClose, onDone }) 
             {rows.length > 0 && (
               <tfoot>
                 <tr style={{ borderTop: '2px solid var(--border)' }}>
-                  <td colSpan={3} style={{ textAlign: 'right', fontWeight: 600 }}>รวม</td>
-                  <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>{total.toFixed(2)} {symbol}</td>
+                  <td colSpan={3} className="text-right fw-600">รวม</td>
+                  <td className="mono text-right" style={{ fontWeight: 700 }}>{total.toFixed(2)} {symbol}</td>
                   <td></td>
                 </tr>
               </tfoot>
@@ -452,10 +452,10 @@ function ReceiveLineModal({ po, line, onClose, onDone }) {
 
   return (
     <Modal title={`รับเข้า: ${line.plant_name}`} onClose={onClose} size="sm">
-      <p style={{ marginTop: 0, fontSize: 13, color: 'var(--muted)' }}>
+      <p className="text-md muted" style={{ marginTop: 0 }}>
         PO {po.po_number} · สั่ง {line.qty_ordered} · รับแล้ว {line.qty_received} · คงเหลือ {remaining}
       </p>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <form onSubmit={handleSubmit} className="form-col">
         <Field label="จำนวนที่รับเข้า" required>
           <input type="number" min="1" max={remaining} value={qty} onChange={e => setQty(e.target.value)} autoFocus />
         </Field>
