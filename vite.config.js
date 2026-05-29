@@ -3,7 +3,9 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  base: './',
+  // Vercel serves the SPA from /; absolute base is required so deep
+  // routes (e.g. /settings/billing) resolve assets correctly.
+  base: '/',
   plugins: [
     react(),
     VitePWA({

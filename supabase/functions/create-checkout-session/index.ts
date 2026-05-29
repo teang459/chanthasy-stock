@@ -107,13 +107,12 @@ Deno.serve(async (req: Request) => {
       .eq('store_id', store_id)
   }
 
-  // Hash route: SPA reads success/cancel state from the URL fragment
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     customer: customerId,
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${APP_URL}/#/settings?checkout=success`,
-    cancel_url:  `${APP_URL}/#/pricing?checkout=cancelled`,
+    success_url: `${APP_URL}/settings?checkout=success`,
+    cancel_url:  `${APP_URL}/pricing?checkout=cancelled`,
     metadata: { store_id, tier },
     subscription_data: { metadata: { store_id, tier } },
     allow_promotion_codes: true,

@@ -1,5 +1,5 @@
 import React, { useEffect, lazy, Suspense } from 'react'
-import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ToastProvider } from './contexts/ToastContext'
 import { CurrencyProvider } from './contexts/CurrencyContext'
@@ -65,7 +65,7 @@ export default function App() {
     <AuthProvider>
       <ToastProvider>
       <CurrencyProvider>
-        <HashRouter>
+        <BrowserRouter>
           <RecoveryHandler />
           <Suspense fallback={<PageFallback />}>
             <Routes>
@@ -94,7 +94,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
-        </HashRouter>
+        </BrowserRouter>
       </CurrencyProvider>
       </ToastProvider>
     </AuthProvider>

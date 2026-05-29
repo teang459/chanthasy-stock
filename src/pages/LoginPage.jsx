@@ -43,9 +43,7 @@ export default function LoginPage() {
     e.preventDefault()
     if (!resetEmail.trim()) return
     setResetLoading(true)
-    // Keep the deploy's base path (e.g. /chanthasy-stock/) so HashRouter
-    // can pick up the PASSWORD_RECOVERY hash and route to /reset-password.
-    const redirectTo = `${window.location.origin}${window.location.pathname}`
+    const redirectTo = `${window.location.origin}/reset-password`
     const { error: err } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
       redirectTo,
     })

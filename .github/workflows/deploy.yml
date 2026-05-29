@@ -1,8 +1,11 @@
 name: Deploy to GitHub Pages
 
+# Disabled in favour of Vercel (I3 migration). The app now uses
+# BrowserRouter and base '/', which GitHub Pages can't serve from a
+# project subpath without breaking deep links. Kept around for
+# rollback; flip back to push triggers if Vercel ever drops.
 on:
-  push:
-    branches: [master]
+  workflow_dispatch:
 
 permissions:
   contents: read

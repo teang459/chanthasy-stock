@@ -71,7 +71,7 @@ Deno.serve(async (req: Request) => {
   const stripe = new Stripe(STRIPE_KEY, { apiVersion: '2024-12-18.acacia' })
   const session = await stripe.billingPortal.sessions.create({
     customer:   sub.provider_customer_id,
-    return_url: `${APP_URL}/#/settings`,
+    return_url: `${APP_URL}/settings`,
   })
 
   return json(200, { url: session.url })
