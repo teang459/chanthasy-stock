@@ -26,7 +26,10 @@
 --           affected settlement snapshot with an audit note.
 --   - 016 — audit_logs table + triggers on stores/store_members and
 --           profile.role + log inside reopen_settlement. Edge Function
---           writes user.create / user.delete rows.                  ← applied here
+--           writes user.create / user.delete rows.
+--   - 017 — audit triggers FK-safe on store delete (store_id → NULL
+--           when parent gone) + handle_new_user role 'staff' → 'member'
+--           realignment with profiles_role_check enum.             ← applied here
 -- ================================================================
 
 -- ====================================================
@@ -826,11 +829,120 @@ CREATE POLICY audit_select ON audit_logs FOR SELECT
     OR (store_id IS NOT NULL AND is_store_admin(store_id))
   );
 -- No INSERT/UPDATE/DELETE policies; writes go through SECURITY DEFINER
--- triggers + the log_audit helper. See migration 016 for full bodies of:
---   log_audit(action, entity_type, entity_id, store_id, metadata)
---   audit_stores_trigger, audit_store_members_trigger, audit_profile_role_trigger
--- Triggers stores_audit, store_members_audit, profiles_role_audit attach
--- to their tables and call log_audit on every change.
+-- triggers + the log_audit helper below.
+
+CREATE OR REPLACE FUNCTION public.log_audit(
+  p_action       TEXT,
+  p_entity_type  TEXT,
+  p_entity_id    UUID,
+  p_store_id     UUID,
+  p_metadata     JSONB DEFAULT NULL
+)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $func$
+DECLARE
+  v_email TEXT;
+BEGIN
+  SELECT email::text INTO v_email FROM auth.users WHERE id = auth.uid();
+  INSERT INTO audit_logs (actor_id, actor_email, store_id, action, entity_type, entity_id, metadata)
+  VALUES (auth.uid(), v_email, p_store_id, p_action, p_entity_type, p_entity_id, p_metadata);
+END $func$;
+
+-- stores trigger — FK-safe on DELETE (store_id NULL'd so AFTER DELETE doesn't
+-- violate audit_logs.store_id → stores(id) FK; entity_id keeps original id).
+CREATE OR REPLACE FUNCTION public.audit_stores_trigger()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $func$
+DECLARE
+  v_action TEXT;
+  v_meta   JSONB;
+  v_id     UUID;
+  v_store  UUID;
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    v_action := 'store.create';
+    v_meta   := jsonb_build_object('after', to_jsonb(NEW));
+    v_id     := NEW.id;
+    v_store  := NEW.id;
+  ELSIF TG_OP = 'UPDATE' THEN
+    v_action := 'store.update';
+    v_meta   := jsonb_build_object('before', to_jsonb(OLD), 'after', to_jsonb(NEW));
+    v_id     := NEW.id;
+    v_store  := NEW.id;
+  ELSIF TG_OP = 'DELETE' THEN
+    v_action := 'store.delete';
+    v_meta   := jsonb_build_object('before', to_jsonb(OLD));
+    v_id     := OLD.id;
+    v_store  := NULL;
+  END IF;
+  PERFORM log_audit(v_action, 'store', v_id, v_store, v_meta);
+  RETURN COALESCE(NEW, OLD);
+END $func$;
+
+DROP TRIGGER IF EXISTS stores_audit ON stores;
+CREATE TRIGGER stores_audit
+  AFTER INSERT OR UPDATE OR DELETE ON stores
+  FOR EACH ROW EXECUTE FUNCTION audit_stores_trigger();
+
+-- store_members trigger — FK-safe when parent store is cascade-deleted.
+CREATE OR REPLACE FUNCTION public.audit_store_members_trigger()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $func$
+DECLARE
+  v_action TEXT;
+  v_meta   JSONB;
+  v_id     UUID;
+  v_store  UUID;
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    v_action := 'member.add';
+    v_meta   := jsonb_build_object('after',  to_jsonb(NEW));
+    v_id     := NEW.id;
+    v_store  := NEW.store_id;
+  ELSIF TG_OP = 'UPDATE' THEN
+    v_action := 'member.update';
+    v_meta   := jsonb_build_object('before', to_jsonb(OLD), 'after', to_jsonb(NEW));
+    v_id     := NEW.id;
+    v_store  := NEW.store_id;
+  ELSIF TG_OP = 'DELETE' THEN
+    v_action := 'member.remove';
+    v_meta   := jsonb_build_object('before', to_jsonb(OLD));
+    v_id     := OLD.id;
+    IF EXISTS (SELECT 1 FROM stores WHERE id = OLD.store_id) THEN
+      v_store := OLD.store_id;
+    ELSE
+      v_store := NULL;
+    END IF;
+  END IF;
+  PERFORM log_audit(v_action, 'store_member', v_id, v_store, v_meta);
+  RETURN COALESCE(NEW, OLD);
+END $func$;
+
+DROP TRIGGER IF EXISTS store_members_audit ON store_members;
+CREATE TRIGGER store_members_audit
+  AFTER INSERT OR UPDATE OR DELETE ON store_members
+  FOR EACH ROW EXECUTE FUNCTION audit_store_members_trigger();
+
+-- profiles trigger — log only on role change (super_admin ↔ member).
+CREATE OR REPLACE FUNCTION public.audit_profile_role_trigger()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $func$
+BEGIN
+  IF NEW.role IS DISTINCT FROM OLD.role THEN
+    PERFORM log_audit(
+      'profile.role_change',
+      'profile',
+      NEW.id,
+      NULL,
+      jsonb_build_object('before_role', OLD.role, 'after_role', NEW.role,
+                          'name', NEW.name)
+    );
+  END IF;
+  RETURN NEW;
+END $func$;
+
+DROP TRIGGER IF EXISTS profiles_role_audit ON profiles;
+CREATE TRIGGER profiles_role_audit
+  AFTER UPDATE ON profiles
+  FOR EACH ROW EXECUTE FUNCTION audit_profile_role_trigger();
 
 -- ====================================================
 -- Storage bucket: plant-images

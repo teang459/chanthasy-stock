@@ -12,6 +12,10 @@ Deno.serve(async (req: Request) => {
     })
   }
 
+  const APP_URL    = Deno.env.get('APP_URL')    ?? 'https://teang459.github.io/chanthasy-stock'
+  const FROM_EMAIL = Deno.env.get('FROM_EMAIL') ?? 'Chanthasy Stock <onboarding@resend.dev>'
+  const SUPA_URL   = Deno.env.get('SUPABASE_URL') ?? 'https://kdsjqsfiunjhnajstwgi.supabase.co'
+
   let payload: { user: { email: string }; email_data: { token_hash: string; redirect_to: string; email_action_type: string } }
   try {
     payload = await req.json()
@@ -26,7 +30,7 @@ Deno.serve(async (req: Request) => {
   const { token_hash, redirect_to, email_action_type } = email_data
 
   const confirmUrl =
-    `https://kdsjqsfiunjhnajstwgi.supabase.co/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${encodeURIComponent(redirect_to || 'https://teang459.github.io/chanthasy-stock')}`
+    `${SUPA_URL}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${encodeURIComponent(redirect_to || APP_URL)}`
 
   const subjects: Record<string, string> = {
     signup: 'ยืนยันอีเมลของคุณ – Chanthasy Stock',
@@ -60,7 +64,7 @@ Deno.serve(async (req: Request) => {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: 'Chanthasy Stock <onboarding@resend.dev>',
+      from: FROM_EMAIL,
       to: [user.email],
       subject,
       html,

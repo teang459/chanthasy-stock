@@ -2,9 +2,28 @@
 
 **Project:** Chanthasy Stock — Plant Stock Management SaaS  
 **Stack:** React 18 + Vite + Supabase + GitHub Pages  
-**Last Updated:** 2026-05-26  
+**Last Updated:** 2026-05-29  
 **Current Status:** Functional but not production-ready  
 **Deployment:** GitHub Pages (free) → Plan to migrate to Vercel
+
+## Sweep 2026-05-29 — verified state vs original roadmap
+
+Re-audited every Phase 1 + Phase 2 item against the current tree. Most "Not fixed" entries below are stale — code already matches the recommended fix. Net work this pass:
+
+- ✅ C1 — `adjust_stock` already gates on `has_perm(store_id, …)` (schema.sql:471). Closed.
+- ✅ C2 — schema.sql synced with migration 017 (FK-safe audit triggers + handle_new_user role realignment). **Edited.**
+- ✅ C3 — Edge Functions now read `APP_URL`, `FROM_EMAIL`, `SUPABASE_URL` from env (LoginPage already used `window.location.origin`). **Edited.**
+- ✅ C6 — prototype files (app.jsx, data.jsx, parts.jsx, tweaks-panel.jsx, icons.jsx, styles.css) are gone from the tree.
+- ✅ H1 — Topbar uses `<form onSubmit>`, no per-keystroke navigation (Topbar.jsx:50-55).
+- ✅ H2 — MovementsPage subscribes to `event: '*'` (MovementsPage.jsx:31).
+- ✅ H4 — AdminPage builds payloads with `|| null`, never `|| undefined` (AdminPage.jsx:365-375).
+- ✅ H5 — every storage cleanup `.catch` logs via console.error (StockPage.jsx:145,159,207).
+- ✅ H6 — OnboardingWizard is info-only post-Phase C, no save call to error-handle.
+- ✅ H7 — CalendarPage payload uses `store_id: ownerId` (CalendarPage.jsx:100).
+- ✅ H8 — Confirm component has `busy` state + disabled buttons + early-return guard.
+- ✅ H9 — every `postgres_changes` subscription filters on `store_id=eq.${ownerId}` (grep'd Layout/Calendar/Dashboard/Finance/LowStock/Movements/Stock).
+
+Still open from Phase 1-2: **C4** (domain + Resend verify, requires purchase), **H3** (ReportsPage 5000 limit), **H10** (currency conversion). Old "Not fixed" labels below kept for the rest of the document but are misleading for the items above — see this section as authoritative.
 
 ---
 

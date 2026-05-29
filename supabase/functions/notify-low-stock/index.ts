@@ -3,6 +3,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const SUPA_URL   = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPA_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+const FROM_EMAIL = Deno.env.get('FROM_EMAIL') ?? 'Chanthasy Stock <onboarding@resend.dev>'
 
 serve(async () => {
   if (!RESEND_KEY) return new Response('RESEND_API_KEY not set', { status: 500 })
@@ -78,7 +79,7 @@ serve(async () => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Chanthasy Stock <onboarding@resend.dev>',
+        from: FROM_EMAIL,
         to: [user.email],
         subject: `⚠️ สต็อกต่ำ ${ownerPlants.length} รายการ — ${shopName}`,
         html,
