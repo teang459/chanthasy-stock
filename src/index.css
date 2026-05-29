@@ -823,23 +823,6 @@ tbody tr:hover { background: var(--surface-2) }
 .about-row:last-child { border-bottom:none }
 .about-row span:last-child { color:var(--muted); font-family:'IBM Plex Mono' }
 
-/* Currency selector */
-.currency-options { display:flex; gap:10px; margin-top:12px }
-.currency-btn {
-  flex:1; display:flex; align-items:center; gap:12px;
-  padding:12px 14px;
-  background:var(--surface-2);
-  border:2px solid var(--border);
-  border-radius:var(--radius);
-  cursor:pointer; text-align:left;
-  transition:border-color .15s, background .15s;
-}
-.currency-btn:hover { border-color:var(--accent); background:var(--accent-soft) }
-.currency-btn.active { border-color:var(--accent); background:var(--accent-soft) }
-.currency-symbol { font-size:22px; font-weight:700; color:var(--accent); min-width:28px; text-align:center }
-.currency-name { font-size:13px; font-weight:500 }
-.currency-code { font-size:11px; color:var(--muted); font-family:'IBM Plex Mono' }
-
 /* ============================================================
    LOGIN
    ============================================================ */

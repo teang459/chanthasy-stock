@@ -160,9 +160,6 @@ export default {
     password_saved: 'Password changed',
     password_mismatch: 'Passwords do not match',
 
-    currency_title: 'Display currency',
-    currency_hint: 'Choose the currency symbol shown across the app',
-
     locale_title: 'Language',
     locale_hint: 'Switch instantly (saved in your browser)',
 

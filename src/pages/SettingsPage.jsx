@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
-import { useCurrency } from '../contexts/CurrencyContext'
 import { supabase } from '../lib/supabase'
 import Spinner from '../components/Spinner'
 import Field from '../components/Field'
@@ -16,7 +15,6 @@ export default function SettingsPage() {
           changePassword, logout, isSuperAdmin } = useAuth()
   const { toast } = useToast()
   const t = useT()
-  const { currency, setCurrency } = useCurrency()
   const currentStore = stores.find(s => s.id === currentStoreId)
   const canEditStore = isSuperAdmin || currentStore?.role === 'store_admin'
 
@@ -277,26 +275,6 @@ export default function SettingsPage() {
             <p className="settings-hint">{t('settings.locale_hint')}</p>
             <div style={{ marginTop: 6 }}>
               <LanguageSwitcher />
-            </div>
-          </div>
-        </section>
-
-        {/* Currency (display only) */}
-        <section className="card">
-          <div className="card-header"><h2 className="card-title"><I.Chart size={14} /> {t('settings.currency_title')}</h2></div>
-          <div className="settings-card-body">
-            <p className="settings-hint">{t('settings.currency_hint')}</p>
-            <div className="currency-options">
-              <button className={`currency-btn ${currency === 'THB' ? 'active' : ''}`}
-                onClick={() => setCurrency('THB')}>
-                <span className="currency-symbol">฿</span>
-                <div><div className="currency-name">บาทไทย</div><div className="currency-code">THB</div></div>
-              </button>
-              <button className={`currency-btn ${currency === 'LAK' ? 'active' : ''}`}
-                onClick={() => setCurrency('LAK')}>
-                <span className="currency-symbol">₭</span>
-                <div><div className="currency-name">ກີບລາວ</div><div className="currency-code">LAK</div></div>
-              </button>
             </div>
           </div>
         </section>

@@ -160,9 +160,6 @@ export default {
     password_saved: 'เปลี่ยนรหัสผ่านสำเร็จ',
     password_mismatch: 'รหัสผ่านไม่ตรงกัน',
 
-    currency_title: 'สกุลเงิน (แสดงผล)',
-    currency_hint: 'เลือกสัญลักษณ์ที่ใช้แสดงราคาในระบบ',
-
     locale_title: 'ภาษา',
     locale_hint: 'เปลี่ยนภาษาทันที (ค่าเก็บใน browser ของคุณ)',
 
