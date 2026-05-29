@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useCurrency } from '../contexts/CurrencyContext'
+import { useToast } from '../contexts/ToastContext'
 import { fmtCurrency } from '../lib/utils'
 import { vatBreakdown, hasVat } from '../lib/vat'
+import { userMessage } from '../lib/errors'
 import Spinner from './Spinner'
 import * as I from './Icons'
 
@@ -26,9 +28,26 @@ function buildInvoiceNo(createdAt, seq) {
 export default function Invoice({ movement, onClose }) {
   const { ownerId, profile, stores, currentStoreId } = useAuth()
   const { symbol } = useCurrency()
+  const { toast } = useToast()
   const currentStore = stores.find(s => s.id === currentStoreId)
   const [seq, setSeq] = useState(null)
   const [customer, setCustomer] = useState(null)
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
+
+  async function handleDownloadPDF() {
+    if (downloadingPdf || seq == null) return
+    setDownloadingPdf(true)
+    try {
+      const mod = await import('./InvoicePDF')
+      await mod.downloadInvoicePDF({
+        movement, store: currentStore, customer, symbol, number,
+      })
+    } catch (err) {
+      toast.error(`ดาวน์โหลด PDF ไม่สำเร็จ: ${userMessage(err)}`)
+    } finally {
+      setDownloadingPdf(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -68,8 +87,13 @@ export default function Invoice({ movement, onClose }) {
           <div style={{ fontSize: 14, fontWeight: 600 }}>ใบเสร็จรับเงิน</div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-ghost" onClick={onClose}>ปิด</button>
-            <button className="btn btn-primary" onClick={() => window.print()} disabled={seq == null}>
-              {seq == null ? <Spinner size={13} color="#fff" /> : <><I.Download size={13} /> พิมพ์ / บันทึก PDF</>}
+            <button className="btn btn-ghost" onClick={() => window.print()} disabled={seq == null}>
+              <I.Download size={13} /> พิมพ์
+            </button>
+            <button className="btn btn-primary" onClick={handleDownloadPDF} disabled={seq == null || downloadingPdf}>
+              {downloadingPdf
+                ? <Spinner size={13} color="#fff" />
+                : <><I.Download size={13} /> ดาวน์โหลด PDF</>}
             </button>
           </div>
         </div>

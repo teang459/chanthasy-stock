@@ -13,6 +13,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.5.1",
     "@sentry/react": "^10.55.0",
     "@supabase/supabase-js": "^2.45.0",
     "html5-qrcode": "^2.3.8",
