@@ -45,7 +45,7 @@ export default function SettingsPage() {
         currency: currentStore.currency ?? 'THB',
       })
     }
-  }, [currentStore?.id, currentStore?.name, currentStore?.address, currentStore?.phone, currentStore?.tax_id, currentStore?.vat_rate, currentStore?.vat_inclusive, currentStore?.currency])
+  }, [currentStore])
 
   async function handleStoreSave(e) {
     e.preventDefault()

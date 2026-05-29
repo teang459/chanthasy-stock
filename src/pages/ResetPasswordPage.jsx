@@ -18,6 +18,7 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     if (!isRecoveryMode) navigate('/login', { replace: true })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRecoveryMode])
 
   async function handleSubmit(e) {

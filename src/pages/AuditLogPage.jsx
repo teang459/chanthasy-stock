@@ -8,8 +8,6 @@ import { fmtDateTime } from '../lib/utils'
 import Modal from '../components/Modal'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
-import * as I from '../components/Icons'
-
 const ACTION_LABEL = {
   'store.create':         'สร้างสาขา',
   'store.update':         'แก้ไขสาขา',
@@ -40,6 +38,7 @@ export default function AuditLogPage() {
   const [actionFilter, setActionFilter] = useState('')
   const [detail, setDetail]       = useState(null)
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [storeFilter, actionFilter])
 
   async function load(append = false) {

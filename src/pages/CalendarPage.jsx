@@ -43,6 +43,7 @@ export default function CalendarPage() {
       .on('postgres_changes', { event:'*', schema:'public', table:'calendar_events', filter: `store_id=eq.${ownerId}` }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, month, ownerId])
 
   async function load() {

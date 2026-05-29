@@ -33,6 +33,7 @@ export default function Layout() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'plants', filter: `store_id=eq.${ownerId}` }, fetchLow)
       .subscribe()
     return () => supabase.removeChannel(ch)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ownerId])
 
   useEffect(() => {

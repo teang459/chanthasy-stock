@@ -6,7 +6,6 @@ import { useCurrency } from '../contexts/CurrencyContext'
 import { useAuth } from '../contexts/AuthContext'
 import { useT } from '../i18n'
 import StatusBadge from '../components/StatusBadge'
-import Spinner from '../components/Spinner'
 import { SkeletonStats, SkeletonBox } from '../components/Skeleton'
 import * as I from '../components/Icons'
 
@@ -27,6 +26,7 @@ export default function DashboardPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'movements', filter: `store_id=eq.${ownerId}` }, fetchAll)
       .subscribe()
     return () => supabase.removeChannel(ch)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ownerId])
 
   async function fetchAll() {

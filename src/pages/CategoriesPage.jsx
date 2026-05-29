@@ -24,7 +24,7 @@ const HUES = [
 
 export default function CategoriesPage() {
   const { toast } = useToast()
-  const { user, ownerId, perms } = useAuth()
+  const { ownerId, perms } = useAuth()
   const canWrite  = perms.perm_manage_plants
   const canDelete = perms.perm_manage_plants
   const [cats, setCats]         = useState([])
@@ -37,6 +37,7 @@ export default function CategoriesPage() {
   const [errors, setErrors]     = useState({})
   const [saving, setSaving]     = useState(false)
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (ownerId) load() }, [ownerId])
 
   async function load() {

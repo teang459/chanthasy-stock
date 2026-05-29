@@ -34,6 +34,7 @@ export default function CustomersPage() {
   const [errors, setErrors]       = useState({})
   const [saving, setSaving]       = useState(false)
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (ownerId) load() }, [ownerId])
 
   async function load() {

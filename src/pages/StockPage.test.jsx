@@ -17,7 +17,7 @@ vi.mock('../contexts/CurrencyContext', () => ({
   useCurrency: () => ({ symbol: '฿', currency: 'THB' }),
 }))
 vi.mock('../i18n', () => ({
-  useT: () => (key, params) => {
+  useT: () => (key, _params) => {
     const translations = {
       'stock.page_title': 'รายการสต็อก',
       'common.loading': 'กำลังโหลด...',

@@ -6,7 +6,6 @@ import { fmtDateTime, downloadCSV } from '../lib/utils'
 import { userMessage } from '../lib/errors'
 import { usePagination } from '../lib/usePagination'
 import EmptyState from '../components/EmptyState'
-import Spinner from '../components/Spinner'
 import { SkeletonTable } from '../components/Skeleton'
 import * as I from '../components/Icons'
 
@@ -30,6 +29,7 @@ export default function MovementsPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'movements', filter: `store_id=eq.${ownerId}` }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ownerId])
 
   async function load() {

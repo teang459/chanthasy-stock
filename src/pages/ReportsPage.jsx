@@ -70,6 +70,7 @@ export default function ReportsPage() {
   const [exporting, setExporting] = useState(false)
   const [range, setRange]       = useState('30')
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (ownerId) load() }, [range, ownerId])
 
   async function load() {

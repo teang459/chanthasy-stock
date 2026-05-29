@@ -50,6 +50,7 @@ export default function PurchaseOrdersPage() {
   const [cancelTarget, setCancelTarget] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (ownerId) load() }, [ownerId])
 
   async function load() {

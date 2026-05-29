@@ -39,6 +39,7 @@ function RecoveryHandler() {
   const navigate = useNavigate()
   useEffect(() => {
     if (isRecoveryMode) navigate('/reset-password', { replace: true })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRecoveryMode])
   return null
 }

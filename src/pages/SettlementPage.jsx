@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { useCurrency } from '../contexts/CurrencyContext'
 import { userMessage } from '../lib/errors'
-import { fmtCurrency, fmtDate } from '../lib/utils'
+import { fmtDate } from '../lib/utils'
 import { computeLiveTotals, computeExpectedCash } from '../lib/settlement'
 import Spinner from '../components/Spinner'
 import Modal from '../components/Modal'
@@ -41,6 +41,7 @@ export default function SettlementPage() {
   const currentStore = stores.find(s => s.id === currentStoreId)
   const canSettle = perms.perm_settle
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (storeId) load() }, [storeId])
 
   async function load() {

@@ -59,6 +59,7 @@ export default function AdminPage() {
   const [editingMember, setEditingMember] = useState(null)      // { store_id, member }
   const [removingMember, setRemovingMember] = useState(null)    // { store_id, member }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (isSuperAdmin) load() }, [isSuperAdmin])
 
   async function load() {
@@ -532,7 +533,7 @@ function AddMemberModal({ storeId, existingMemberUserIds, allUsers, onClose, onD
   )
 }
 
-function EditMemberModal({ storeId, member, userLabel, onClose, onDone }) {
+function EditMemberModal({ storeId: _storeId, member, userLabel, onClose, onDone }) {
   const { toast } = useToast()
   const [role, setRole] = useState(member.role)
   const [perms, setPerms] = useState(() => Object.fromEntries(PERM_FLAGS.map(p => [p.key, member[p.key]])))

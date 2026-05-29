@@ -27,7 +27,7 @@ const BulkImport     = lazy(() => import('../components/BulkImport'))
 
 export default function StockPage() {
   const { toast } = useToast()
-  const { user, ownerId, perms } = useAuth()
+  const { ownerId, perms } = useAuth()
   const t = useT()
   // perm_manage_plants gates plant CRUD; adjust/sell/receive flags gate the stock-adjust modal.
   const canWrite  = perms.perm_manage_plants
@@ -66,6 +66,7 @@ export default function StockPage() {
       .on('postgres_changes', { event:'*', schema:'public', table:'plants', filter: `store_id=eq.${ownerId}` }, loadPlants)
       .subscribe()
     return () => supabase.removeChannel(ch)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ownerId])
 
   async function load() {

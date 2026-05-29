@@ -55,7 +55,7 @@ export function initSentry() {
       'Importing a module script failed',
     ],
 
-    beforeSend(event, hint) {
+    beforeSend(event, _hint) {
       // Strip the Supabase anon key from URLs if it ever leaks into a
       // breadcrumb (it appears in the apikey query string on REST calls)
       if (event.request?.url) {
