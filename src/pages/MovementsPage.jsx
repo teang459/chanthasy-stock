@@ -4,6 +4,7 @@ import { useToast } from '../contexts/ToastContext'
 import { useAuth } from '../contexts/AuthContext'
 import { fmtDateTime, downloadCSV } from '../lib/utils'
 import { userMessage } from '../lib/errors'
+import { usePagination } from '../lib/usePagination'
 import EmptyState from '../components/EmptyState'
 import Spinner from '../components/Spinner'
 import { SkeletonTable } from '../components/Skeleton'
@@ -20,9 +21,7 @@ export default function MovementsPage() {
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
   const [typeFilter, setTypeFilter] = useState('')
-  const [page, setPage]           = useState(1)
   const [invoiceFor, setInvoiceFor] = useState(null)
-  const PER_PAGE = 30
 
   useEffect(() => {
     if (!ownerId) return
@@ -47,7 +46,7 @@ export default function MovementsPage() {
   }
 
   const filtered = useMemo(() => {
-    let list = [...moves]
+    let list = moves
     if (search) {
       const q = search.toLowerCase()
       list = list.filter(m => m.plants?.name?.toLowerCase().includes(q) || m.plants?.sku?.toLowerCase().includes(q) || m.note?.toLowerCase().includes(q))
@@ -56,8 +55,7 @@ export default function MovementsPage() {
     return list
   }, [moves, search, typeFilter])
 
-  const paginated = filtered.slice((page-1)*PER_PAGE, page*PER_PAGE)
-  const totalPages = Math.ceil(filtered.length / PER_PAGE)
+  const { paginated, page, setPage, totalPages } = usePagination(filtered, 30)
 
   function handleExport() {
     const rows = [

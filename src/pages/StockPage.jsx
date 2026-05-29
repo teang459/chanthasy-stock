@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { statusOf, fmtCurrency, generateSKU, downloadCSV, statusLabel } from '../lib/utils'
 import { userMessage } from '../lib/errors'
 import { compressImage, storagePath, MAX_IMAGE_BYTES } from '../lib/image'
+import { usePagination } from '../lib/usePagination'
 import { useCurrency } from '../contexts/CurrencyContext'
 import { useT } from '../i18n'
 import Modal from '../components/Modal'
@@ -53,7 +54,6 @@ export default function StockPage() {
   const [saving, setSaving] = useState(false)
 
   const [adjForm, setAdjForm] = useState({ type:'in', qty:1, note:'', payment:'cash', customer_id:'' })
-  const [page, setPage] = useState(0)
   const PAGE_SIZE = 50
   const [imgUploading, setImgUploading] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
@@ -243,20 +243,18 @@ export default function StockPage() {
   }
 
   const filtered = useMemo(() => {
-    let list = [...plants]
+    let list = plants
     if (search) {
       const q = search.toLowerCase()
       list = list.filter(p => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.name_sci?.toLowerCase().includes(q))
     }
     if (catFilter) list = list.filter(p => p.category_id === catFilter)
-    list.sort((a, b) => String(a.name).localeCompare(String(b.name), 'th'))
-    return list
+    return [...list].sort((a, b) => String(a.name).localeCompare(String(b.name), 'th'))
   }, [plants, search, catFilter])
 
-  useEffect(() => { setPage(0) }, [search, catFilter])
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  // 1-based throughout the page (matches usePagination + display). The
+  // old code carried a 0-based index just for slice math.
+  const { paginated: paged, page, setPage, totalPages } = usePagination(filtered, PAGE_SIZE)
 
   function handleExport() {
     const rows = [
@@ -299,7 +297,7 @@ export default function StockPage() {
           <h1 className="page-title">{t('stock.page_title')}</h1>
           <p className="page-sub">
             {filtered.length} {t('common.items')}
-            {totalPages > 1 && ` · ${page + 1}/${totalPages}`}
+            {totalPages > 1 && ` · ${page}/${totalPages}`}
           </p>
         </div>
         <div className="page-actions">
@@ -389,9 +387,9 @@ export default function StockPage() {
 
       {totalPages > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 16 }}>
-          <button className="btn btn-ghost" disabled={page === 0} onClick={() => setPage(p => p - 1)}>← {t('common.back')}</button>
-          <span style={{ fontSize: 13, color: 'var(--muted)' }}>{page + 1} / {totalPages}</span>
-          <button className="btn btn-ghost" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>{t('common.next')} →</button>
+          <button className="btn btn-ghost" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← {t('common.back')}</button>
+          <span style={{ fontSize: 13, color: 'var(--muted)' }}>{page} / {totalPages}</span>
+          <button className="btn btn-ghost" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t('common.next')} →</button>
         </div>
       )}
 
@@ -547,7 +545,7 @@ export default function StockPage() {
               const trimmed = (code ?? '').trim()
               if (!trimmed) return
               setSearch(trimmed)
-              setPage(0)
+              setPage(1)
               const hit = plants.find(p => p.sku?.toLowerCase() === trimmed.toLowerCase())
               if (hit) toast.success(`พบ: ${hit.name} (${hit.sku})`)
               else toast.info(`ไม่พบ SKU "${trimmed}" — แสดงผลค้นหา`)
