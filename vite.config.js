@@ -3,9 +3,9 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  // GitHub Pages serves from /chanthasy-stock/ subpath.
-  // Vercel deployment also works because it rewrites to the root.
-  base: '/chanthasy-stock/',
+  // GitHub Pages needs /chanthasy-stock/; Vercel needs /.
+  // VITE_BASE_PATH is set in deploy.yml for GitHub Pages builds only.
+  base: process.env.VITE_BASE_PATH || '/',
   plugins: [
     react(),
     VitePWA({

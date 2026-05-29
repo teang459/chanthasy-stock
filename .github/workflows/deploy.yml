@@ -43,6 +43,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
+          VITE_BASE_PATH:         /chanthasy-stock/
           VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_SENTRY_DSN:        ${{ secrets.VITE_SENTRY_DSN }}
