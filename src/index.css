@@ -1168,6 +1168,170 @@ tbody tr:hover { background: var(--surface-2) }
   font-weight: 500;
 }
 .landing-footer-links a:hover { text-decoration: underline; }
+.landing-footer-link {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--text); font: inherit; font-weight: 500;
+}
+.landing-footer-link:hover { text-decoration: underline; }
+
+/* Nav link (Pricing) */
+.landing-nav-link {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.landing-nav-link:hover { background: var(--surface-2); }
+
+/* Section variant — alternating subtle bg */
+.landing-section--alt {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+.landing-section--alt > .landing-h2,
+.landing-section--alt > .landing-testimonials-grid,
+.landing-section--alt > .landing-faq {
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+/* Testimonials */
+.landing-testimonials-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+.landing-testimonial {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px 20px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.landing-testimonial-quote {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  font-style: italic;
+  color: var(--text);
+}
+.landing-testimonial-cite {
+  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-style: normal;
+}
+.landing-testimonial-cite strong { font-weight: 600; }
+.landing-testimonial-cite span { color: var(--muted); }
+
+/* FAQ */
+.landing-faq {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.landing-faq-item {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.landing-faq-item.is-open { border-color: var(--accent); }
+.landing-faq-q {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 14px 16px;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.landing-faq-q svg { color: var(--muted); transition: transform 0.2s; flex-shrink: 0; }
+.landing-faq-item.is-open .landing-faq-q svg { transform: rotate(90deg); }
+.landing-faq-a {
+  padding: 0 16px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* Contact */
+.landing-contact-intro {
+  text-align: center;
+  color: var(--muted);
+  margin: -16px 0 24px;
+  font-size: 14px;
+}
+.landing-contact-form {
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: relative;
+}
+.landing-contact-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.landing-contact-form input,
+.landing-contact-form textarea {
+  font-size: 14px;
+  padding: 10px 12px;
+}
+.landing-contact-err {
+  font-size: 12.5px;
+  color: var(--danger, #dc2626);
+  background: var(--danger-soft, oklch(96% 0.04 25));
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+.landing-contact-form button[type="submit"] {
+  align-self: flex-start;
+  padding: 10px 22px;
+  font-size: 14px;
+}
+.landing-contact-sent {
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 22px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.landing-contact-sent svg { color: var(--accent); flex-shrink: 0; }
 
 @media (max-width: 720px) {
   .landing-hero { grid-template-columns: 1fr; padding: 40px 16px 56px; gap: 32px; }
@@ -1175,8 +1339,10 @@ tbody tr:hover { background: var(--surface-2) }
   .landing-hero-mock { order: -1; }
   .mock-card { transform: none; }
   .landing-features-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .landing-testimonials-grid { grid-template-columns: 1fr; gap: 12px; }
   .landing-h2 { font-size: 22px; margin-bottom: 24px; }
   .landing-section { padding: 40px 16px; }
+  .landing-section--alt { padding-left: 0; padding-right: 0; }
 }
 @media (max-width: 480px) {
   .landing-features-grid { grid-template-columns: 1fr; }
