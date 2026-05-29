@@ -186,8 +186,8 @@ export default function BulkImport({ onClose, onDone, categories = [], suppliers
   return (
     <Modal title="นำเข้าต้นไม้จาก CSV" onClose={onClose} size="lg">
       {step === 'upload' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
+        <div className="form-col">
+          <p className="no-m text-md muted">
             อัปโหลดไฟล์ CSV ที่มีคอลัมน์ <strong>sku, name, stock, price</strong> เป็นอย่างน้อย —
             คอลัมน์อื่น (name_sci, min_stock, cost, note, category, supplier) ใส่หรือไม่ใส่ก็ได้
           </p>
@@ -206,15 +206,15 @@ export default function BulkImport({ onClose, onDone, categories = [], suppliers
 
       {step === 'preview' && (
         <div>
-          <div style={{ display: 'flex', gap: 12, marginBottom: 10, fontSize: 13 }}>
+          <div className="text-md" style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
             <span>📊 ทั้งหมด: <strong>{rows.length}</strong></span>
-            <span style={{ color: 'var(--success, #16a34a)' }}>✓ ใช้งานได้: <strong>{validCount}</strong></span>
+            <span className="text-green">✓ ใช้งานได้: <strong>{validCount}</strong></span>
             {invalidCount > 0 && (
-              <span style={{ color: 'var(--danger, #dc2626)' }}>✗ ผิดพลาด: <strong>{invalidCount}</strong></span>
+              <span className="text-red">✗ ผิดพลาด: <strong>{invalidCount}</strong></span>
             )}
           </div>
 
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
+          <div className="text-sm muted" style={{ marginBottom: 10 }}>
             Header mapping: {Object.entries(headerMap).map(([h, f]) =>
               <span key={h} style={{ marginRight: 10 }}>
                 <code>{h}</code> → <em>{f ?? '(ข้าม)'}</em>
@@ -237,7 +237,7 @@ export default function BulkImport({ onClose, onDone, categories = [], suppliers
               <tbody>
                 {rows.slice(0, 200).map((r, i) => (
                   <tr key={i} style={{ background: r.errors.length ? 'rgba(220,38,38,0.06)' : undefined }}>
-                    <td style={{ color: 'var(--muted)' }}>{i + 1}</td>
+                    <td className="muted">{i + 1}</td>
                     <td className="mono">{r.data.sku ?? ''}</td>
                     <td>{r.data.name ?? ''}</td>
                     <td className="mono">{r.data.stock ?? ''}</td>
@@ -250,13 +250,13 @@ export default function BulkImport({ onClose, onDone, categories = [], suppliers
               </tbody>
             </table>
             {rows.length > 200 && (
-              <div style={{ padding: 8, fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>
+              <div className="text-xs muted text-center" style={{ padding: 8 }}>
                 แสดง 200 แถวแรกจาก {rows.length} แถว
               </div>
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+          <div className="row-end" style={{ marginTop: 16 }}>
             <button className="btn btn-ghost" onClick={() => setStep('upload')}>ย้อนกลับ</button>
             <button className="btn btn-primary" onClick={handleImport} disabled={importing || validCount === 0}>
               {importing ? <Spinner size={14} color="#fff" /> : `นำเข้า ${validCount} รายการ`}
@@ -267,10 +267,10 @@ export default function BulkImport({ onClose, onDone, categories = [], suppliers
 
       {step === 'done' && result && (
         <div>
-          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <div className="text-center" style={{ padding: '20px 0' }}>
             <div style={{ fontSize: 40, marginBottom: 8 }}>{result.failed.length === 0 ? '✅' : '⚠️'}</div>
             <h3 style={{ margin: '0 0 4px' }}>เสร็จสิ้น</h3>
-            <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>
+            <p className="muted text-md no-m">
               นำเข้าสำเร็จ <strong>{result.inserted}</strong> รายการ
               {result.failed.length > 0 && <>, ล้มเหลว <strong>{result.failed.length}</strong> รายการ</>}
               {result.dupes.length > 0 && <>, ซ้ำในไฟล์ <strong>{result.dupes.length}</strong> รายการ</>}
@@ -285,7 +285,7 @@ export default function BulkImport({ onClose, onDone, categories = [], suppliers
                   {result.failed.map((f, i) => (
                     <tr key={i}>
                       <td className="mono">{f.sku}</td>
-                      <td style={{ color: 'var(--danger, #dc2626)' }}>{f.msg}</td>
+                      <td className="text-red">{f.msg}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -293,7 +293,7 @@ export default function BulkImport({ onClose, onDone, categories = [], suppliers
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div className="row-end">
             <button className="btn btn-primary" onClick={onClose}>ปิด</button>
           </div>
         </div>

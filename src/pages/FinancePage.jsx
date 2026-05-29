@@ -417,9 +417,9 @@ export default function FinancePage() {
               <th>วันที่</th>
               <th>รายการ</th>
               <th>หมวดหมู่</th>
-              <th style={{ textAlign: 'right' }}>จำนวน</th>
-              <th style={{ textAlign: 'right' }}>ราคา/หน่วย</th>
-              <th style={{ textAlign: 'right' }}>ยอดรวม</th>
+              <th className="text-right">จำนวน</th>
+              <th className="text-right">ราคา/หน่วย</th>
+              <th className="text-right">ยอดรวม</th>
               <th style={{ width: 90 }}></th>
             </tr></thead>
             <tbody>
@@ -440,18 +440,18 @@ export default function FinancePage() {
                       {r.categoryLabel}
                     </span>
                   </td>
-                  <td className="mono" style={{ textAlign: 'right' }}>{r.qty > 1 ? `× ${r.qty}` : '—'}</td>
-                  <td className="mono" style={{ textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>
+                  <td className="mono text-right">{r.qty > 1 ? `× ${r.qty}` : '—'}</td>
+                  <td className="mono text-right text-sm muted">
                     {r.qty > 1 ? `${fmtCurrency(r.unitAmount)} ${symbol}` : '—'}
                   </td>
-                  <td className="mono" style={{ textAlign: 'right', color: r.type === 'income' ? 'var(--accent-ink)' : 'var(--danger-ink)', fontWeight: 600 }}>
+                  <td className="mono text-right fw-600" style={{ color: r.type === 'income' ? 'var(--accent-ink)' : 'var(--danger-ink)' }}>
                     {r.type === 'income' ? '+' : '−'}{fmtCurrency(r.amount)} {symbol}
                   </td>
                   <td>
                     <div className="row-actions">
                       {r.source === 'manual' && canWrite && <button className="icon-btn" onClick={() => openEdit(r)} title="แก้ไข"><I.Edit size={13} /></button>}
                       {r.source === 'manual' && canDelete && <button className="icon-btn danger" onClick={() => setDelItem(r)} title="ลบ"><I.Trash size={13} /></button>}
-                      {r.source === 'stock' && <span style={{ fontSize: 11, color: 'var(--muted)' }}>auto</span>}
+                      {r.source === 'stock' && <span className="text-xs muted">auto</span>}
                     </div>
                   </td>
                 </tr>
@@ -529,7 +529,7 @@ function FinanceStat({ label, value, unit, color, icon: Icon, highlight }) {
 function BreakdownCard({ title, color, children }) {
   return (
     <div className="card" style={{ padding: 14 }}>
-      <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8, fontWeight: 600 }}>
+      <div className="text-sm muted fw-600" style={{ marginBottom: 8 }}>
         <span style={{ color: `oklch(45% 0.12 ${color})` }}>●</span> {title}
       </div>
       {children}
@@ -539,8 +539,8 @@ function BreakdownCard({ title, color, children }) {
 
 function BreakdownRow({ label, value, symbol }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', fontSize: 13 }}>
-      <span style={{ color: 'var(--muted)' }}>{label}</span>
+    <div className="row-between text-md" style={{ padding: '4px 0' }}>
+      <span className="muted">{label}</span>
       <span className="mono">{fmtCurrency(value)} {symbol}</span>
     </div>
   )

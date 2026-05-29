@@ -187,28 +187,28 @@ export default function CustomersPage() {
             <thead><tr>
               <th>ชื่อลูกค้า</th>
               <th>ติดต่อ</th>
-              <th style={{ textAlign: 'right' }}>ครั้งซื้อ</th>
-              <th style={{ textAlign: 'right' }}>ยอดสะสม</th>
+              <th className="text-right">ครั้งซื้อ</th>
+              <th className="text-right">ยอดสะสม</th>
               <th></th>
             </tr></thead>
             <tbody>
               {filtered.map(c => (
                 <tr key={c.id} style={{ opacity: c.active ? 1 : 0.5 }}>
                   <td>
-                    <div style={{ fontWeight: 500 }}>{c.name}</div>
-                    {c.code && <div className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>{c.code}</div>}
-                    {c.tax_id && <div className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>{c.tax_id}</div>}
+                    <div className="fw-500">{c.name}</div>
+                    {c.code && <div className="mono text-xs muted">{c.code}</div>}
+                    {c.tax_id && <div className="mono text-xs muted">{c.tax_id}</div>}
                   </td>
                   <td style={{ fontSize: 12, lineHeight: 1.5 }}>
                     {c.phone && <div>📞 {c.phone}</div>}
-                    {c.email && <div style={{ color: 'var(--muted)' }}>{c.email}</div>}
-                    {c.line_id && <div style={{ color: 'var(--muted)' }}>LINE: {c.line_id}</div>}
+                    {c.email && <div className="muted">{c.email}</div>}
+                    {c.line_id && <div className="muted">LINE: {c.line_id}</div>}
                   </td>
-                  <td className="mono" style={{ textAlign: 'right' }}>{stats[c.id]?.count ?? 0}</td>
-                  <td className="mono" style={{ textAlign: 'right' }}>
+                  <td className="mono text-right">{stats[c.id]?.count ?? 0}</td>
+                  <td className="mono text-right">
                     {fmtCurrency(stats[c.id]?.total ?? 0)} {symbol}
                   </td>
-                  <td style={{ textAlign: 'right' }}>
+                  <td className="text-right">
                     <button className="icon-btn" title="ประวัติซื้อ" onClick={() => setHistoryFor(c)}><I.History size={13} /></button>
                     {canWrite && <button className="icon-btn" title="แก้ไข" onClick={() => openEdit(c)}><I.Edit size={13} /></button>}
                     {canDelete && <button className="icon-btn danger" title="ลบ" onClick={() => setDelItem(c)}><I.Trash size={13} /></button>}
@@ -222,7 +222,7 @@ export default function CustomersPage() {
 
       {showForm && (
         <Modal title={editItem ? `แก้ไขลูกค้า: ${editItem.name}` : 'เพิ่มลูกค้า'} onClose={() => setShowForm(false)}>
-          <form onSubmit={handleSave} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <form onSubmit={handleSave} className="form-grid">
             <Field label="ชื่อลูกค้า" required error={errors.name}>
               <input value={form.name} onChange={e => setF('name', e.target.value)} autoFocus />
             </Field>
@@ -298,13 +298,13 @@ function CustomerHistory({ customer, storeId, symbol, onClose }) {
       ) : rows.length === 0 ? (
         <EmptyState title="ยังไม่มีประวัติ" desc="ลูกค้าคนนี้ยังไม่เคยซื้อสินค้า" />
       ) : (
-        <div className="table-wrap" style={{ margin: 0 }}>
+        <div className="table-wrap no-m">
           <table>
             <thead><tr>
               <th>วันที่</th>
               <th>สินค้า</th>
-              <th style={{ textAlign: 'right' }}>จำนวน</th>
-              <th style={{ textAlign: 'right' }}>ยอด</th>
+              <th className="text-right">จำนวน</th>
+              <th className="text-right">ยอด</th>
               <th>ชำระ</th>
             </tr></thead>
             <tbody>
@@ -316,11 +316,11 @@ function CustomerHistory({ customer, storeId, symbol, onClose }) {
                     <td className="mono text-sm">{fmtDate(r.created_at)}</td>
                     <td>
                       <div>{r.plants?.name ?? '—'}</div>
-                      <div className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>{r.plants?.sku ?? ''}</div>
+                      <div className="mono text-xs muted">{r.plants?.sku ?? ''}</div>
                     </td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{qty}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{fmtCurrency(total)} {symbol}</td>
-                    <td style={{ fontSize: 12, color: 'var(--muted)' }}>{r.payment_method ?? '—'}</td>
+                    <td className="mono text-right">{qty}</td>
+                    <td className="mono text-right">{fmtCurrency(total)} {symbol}</td>
+                    <td className="text-sm muted">{r.payment_method ?? '—'}</td>
                   </tr>
                 )
               })}

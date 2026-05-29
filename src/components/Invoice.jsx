@@ -84,8 +84,8 @@ export default function Invoice({ movement, onClose }) {
       <div className="invoice-card">
         {/* On-screen toolbar (hidden when printing) */}
         <div className="invoice-toolbar no-print">
-          <div style={{ fontSize: 14, fontWeight: 600 }}>ใบเสร็จรับเงิน</div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="fw-600" style={{ fontSize: 14 }}>ใบเสร็จรับเงิน</div>
+          <div className="row">
             <button className="btn btn-ghost" onClick={onClose}>ปิด</button>
             <button className="btn btn-ghost" onClick={() => window.print()} disabled={seq == null}>
               <I.Download size={13} /> พิมพ์
@@ -123,9 +123,9 @@ export default function Invoice({ movement, onClose }) {
             <div className="invoice-meta-label">ลูกค้า</div>
             {customer ? (
               <div>
-                <div style={{ fontWeight: 500 }}>{customer.name}</div>
-                {customer.address && <div style={{ fontSize: 12, color: '#555' }}>{customer.address}</div>}
-                <div style={{ fontSize: 12, color: '#555' }}>
+                <div className="fw-500">{customer.name}</div>
+                {customer.address && <div className="text-sm" style={{ color: '#555' }}>{customer.address}</div>}
+                <div className="text-sm" style={{ color: '#555' }}>
                   {[customer.phone, customer.tax_id && `เลขผู้เสียภาษี ${customer.tax_id}`].filter(Boolean).join(' · ')}
                 </div>
               </div>
@@ -139,9 +139,9 @@ export default function Invoice({ movement, onClose }) {
               <tr>
                 <th style={{ width: 40 }}>#</th>
                 <th>รายการ</th>
-                <th style={{ textAlign: 'right', width: 80 }}>จำนวน</th>
-                <th style={{ textAlign: 'right', width: 110 }}>ราคา/หน่วย</th>
-                <th style={{ textAlign: 'right', width: 110 }}>รวม</th>
+                <th className="text-right" style={{ width: 80 }}>จำนวน</th>
+                <th className="text-right" style={{ width: 110 }}>ราคา/หน่วย</th>
+                <th className="text-right" style={{ width: 110 }}>รวม</th>
               </tr>
             </thead>
             <tbody>
@@ -149,32 +149,32 @@ export default function Invoice({ movement, onClose }) {
                 <td>1</td>
                 <td>
                   <div>{movement.plants?.name ?? '—'}</div>
-                  <div className="mono" style={{ fontSize: 11, color: '#666' }}>{movement.plants?.sku ?? ''}</div>
+                  <div className="mono text-xs" style={{ color: '#666' }}>{movement.plants?.sku ?? ''}</div>
                 </td>
-                <td style={{ textAlign: 'right' }} className="mono">{qty}</td>
-                <td style={{ textAlign: 'right' }} className="mono">{fmtCurrency(unit)} {symbol}</td>
-                <td style={{ textAlign: 'right' }} className="mono">{fmtCurrency(lineTotal)} {symbol}</td>
+                <td className="mono text-right">{qty}</td>
+                <td className="mono text-right">{fmtCurrency(unit)} {symbol}</td>
+                <td className="mono text-right">{fmtCurrency(lineTotal)} {symbol}</td>
               </tr>
             </tbody>
             <tfoot>
               {showVat && (
                 <>
                   <tr>
-                    <td colSpan={4} style={{ textAlign: 'right' }}>มูลค่าก่อน VAT</td>
-                    <td style={{ textAlign: 'right' }} className="mono">{fmtMoney(vat.base)} {symbol}</td>
+                    <td colSpan={4} className="text-right">มูลค่าก่อน VAT</td>
+                    <td className="mono text-right">{fmtMoney(vat.base)} {symbol}</td>
                   </tr>
                   <tr>
-                    <td colSpan={4} style={{ textAlign: 'right' }}>
+                    <td colSpan={4} className="text-right">
                       ภาษีมูลค่าเพิ่ม {Number(vat.rate).toFixed(vat.rate % 1 === 0 ? 0 : 2)}%
-                      {!vat.inclusive && <span style={{ fontSize: 11, color: '#666' }}> (แยกต่างหาก)</span>}
+                      {!vat.inclusive && <span className="text-xs" style={{ color: '#666' }}> (แยกต่างหาก)</span>}
                     </td>
-                    <td style={{ textAlign: 'right' }} className="mono">{fmtMoney(vat.vat)} {symbol}</td>
+                    <td className="mono text-right">{fmtMoney(vat.vat)} {symbol}</td>
                   </tr>
                 </>
               )}
               <tr>
-                <td colSpan={4} style={{ textAlign: 'right', fontWeight: 600 }}>รวมทั้งสิ้น</td>
-                <td style={{ textAlign: 'right', fontWeight: 700, fontSize: 14 }} className="mono">
+                <td colSpan={4} className="text-right fw-600">รวมทั้งสิ้น</td>
+                <td className="mono text-right fw-700" style={{ fontSize: 14 }}>
                   {showVat ? fmtMoney(vat.total) : fmtCurrency(lineTotal)} {symbol}
                 </td>
               </tr>

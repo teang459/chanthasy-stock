@@ -16,7 +16,7 @@ export default function SettlementReport({ row, store, symbol, onClose }) {
       <div className="invoice-card">
         <div className="invoice-toolbar no-print">
           <div style={{ fontSize: 14, fontWeight: 600 }}>ใบสรุปยอดประจำวัน (Z-report)</div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="row">
             <button className="btn btn-ghost" onClick={onClose}>ปิด</button>
             <button className="btn btn-primary" onClick={() => window.print()}>
               <I.Download size={13} /> พิมพ์ / บันทึก PDF
@@ -52,31 +52,31 @@ export default function SettlementReport({ row, store, symbol, onClose }) {
               <tbody>
                 <tr>
                   <td>มูลค่าก่อน VAT</td>
-                  <td className="mono" style={{ textAlign: 'right' }}>{fmt(Number(row.total_sales || 0) - Number(row.total_vat || 0))} {symbol}</td>
+                  <td className="mono text-right">{fmt(Number(row.total_sales || 0) - Number(row.total_vat || 0))} {symbol}</td>
                 </tr>
                 <tr>
                   <td>VAT</td>
-                  <td className="mono" style={{ textAlign: 'right' }}>{fmt(row.total_vat)} {symbol}</td>
+                  <td className="mono text-right">{fmt(row.total_vat)} {symbol}</td>
                 </tr>
                 <tr>
                   <td><strong>ยอดขายรวม</strong></td>
-                  <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(row.total_sales)} {symbol}</td>
+                  <td className="mono text-right fw-600">{fmt(row.total_sales)} {symbol}</td>
                 </tr>
                 <tr>
                   <td>ต้นทุนสินค้าขาย</td>
-                  <td className="mono" style={{ textAlign: 'right', color: '#666' }}>({fmt(row.total_cost)} {symbol})</td>
+                  <td className="mono text-right" style={{ color: '#666' }}>({fmt(row.total_cost)} {symbol})</td>
                 </tr>
                 <tr>
                   <td>รายรับเพิ่ม</td>
-                  <td className="mono" style={{ textAlign: 'right' }}>{fmt(row.total_income)} {symbol}</td>
+                  <td className="mono text-right">{fmt(row.total_income)} {symbol}</td>
                 </tr>
                 <tr>
                   <td>รายจ่าย</td>
-                  <td className="mono" style={{ textAlign: 'right', color: '#666' }}>({fmt(row.total_expense)} {symbol})</td>
+                  <td className="mono text-right" style={{ color: '#666' }}>({fmt(row.total_expense)} {symbol})</td>
                 </tr>
                 <tr style={{ borderTop: '2px solid #111' }}>
-                  <td style={{ fontWeight: 700 }}>กำไรสุทธิ</td>
-                  <td className="mono" style={{ textAlign: 'right', fontWeight: 700, fontSize: 14 }}>{fmt(row.net_sales)} {symbol}</td>
+                  <td className="fw-700">กำไรสุทธิ</td>
+                  <td className="mono text-right fw-700" style={{ fontSize: 14 }}>{fmt(row.net_sales)} {symbol}</td>
                 </tr>
               </tbody>
             </table>
@@ -86,14 +86,12 @@ export default function SettlementReport({ row, store, symbol, onClose }) {
             <h3 style={{ fontSize: 13, margin: '0 0 8px', borderBottom: '1px solid #ddd', paddingBottom: 4 }}>การกระทบยอดเงินสด</h3>
             <table className="invoice-table">
               <tbody>
-                <tr><td>เงินสดตั้งต้น</td><td className="mono" style={{ textAlign: 'right' }}>{fmt(row.opening_cash)} {symbol}</td></tr>
-                <tr><td>เงินสดคาดหวัง</td><td className="mono" style={{ textAlign: 'right' }}>{fmt(row.expected_cash)} {symbol}</td></tr>
-                <tr><td>เงินสดที่นับได้</td><td className="mono" style={{ textAlign: 'right' }}>{fmt(row.closing_cash)} {symbol}</td></tr>
+                <tr><td>เงินสดตั้งต้น</td><td className="mono text-right">{fmt(row.opening_cash)} {symbol}</td></tr>
+                <tr><td>เงินสดคาดหวัง</td><td className="mono text-right">{fmt(row.expected_cash)} {symbol}</td></tr>
+                <tr><td>เงินสดที่นับได้</td><td className="mono text-right">{fmt(row.closing_cash)} {symbol}</td></tr>
                 <tr style={{ borderTop: '2px solid #111' }}>
-                  <td style={{ fontWeight: 700 }}>ส่วนต่าง</td>
-                  <td className="mono" style={{
-                    textAlign: 'right',
-                    fontWeight: 700,
+                  <td className="fw-700">ส่วนต่าง</td>
+                  <td className="mono text-right fw-700" style={{
                     color: row.difference == null ? undefined : (Number(row.difference) === 0 ? '#111' : Number(row.difference) > 0 ? '#16a34a' : '#dc2626')
                   }}>
                     {row.difference != null && Number(row.difference) > 0 ? '+' : ''}{fmt(row.difference)} {symbol}

@@ -126,7 +126,7 @@ export default function SettlementPage() {
           </p>
         </div>
         {!canSettle && (
-          <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+          <div className="text-sm muted">
             <I.Lock size={12} /> คุณไม่มีสิทธิ์ปิดยอด — ติดต่อ store admin
           </div>
         )}
@@ -164,7 +164,7 @@ export default function SettlementPage() {
               {liveSales?.salesCount ?? 0} รายการขาย · รายรับเพิ่ม {fmtMoney(liveSales?.income ?? 0)} · รายจ่าย {fmtMoney(liveSales?.expense ?? 0)}
             </div>
             {canSettle && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+              <div className="row-end" style={{ marginTop: 16 }}>
                 <button className="btn btn-primary" onClick={() => { setClosingCash(String(Math.round(liveExpected ?? 0))); setShowClose(true) }}>
                   <I.Lock size={13} /> ปิดยอด
                 </button>
@@ -184,15 +184,15 @@ export default function SettlementPage() {
         {history.length === 0 ? (
           <EmptyState title="ยังไม่มีประวัติ" desc="เปิดยอดและปิดยอดเป็นประจำเพื่อสร้างรายงานสรุป" />
         ) : (
-          <div className="table-wrap" style={{ margin: 0 }}>
+          <div className="table-wrap no-m">
             <table>
               <thead><tr>
                 <th>วันที่</th>
                 <th>สถานะ</th>
-                <th style={{ textAlign: 'right' }}>ยอดขาย</th>
-                <th style={{ textAlign: 'right' }}>กำไรสุทธิ</th>
-                <th style={{ textAlign: 'right' }}>เงินสดที่นับ</th>
-                <th style={{ textAlign: 'right' }}>ส่วนต่าง</th>
+                <th className="text-right">ยอดขาย</th>
+                <th className="text-right">กำไรสุทธิ</th>
+                <th className="text-right">เงินสดที่นับ</th>
+                <th className="text-right">ส่วนต่าง</th>
                 <th></th>
               </tr></thead>
               <tbody>
@@ -200,15 +200,15 @@ export default function SettlementPage() {
                   <tr key={r.id}>
                     <td className="mono">{fmtDate(r.business_date)}</td>
                     <td><span className={`badge ${r.status === 'closed' ? 'badge--low' : 'badge--info'}`}>{STATUS_LABEL[r.status] ?? r.status}</span></td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{r.total_sales != null ? `${fmtMoney(r.total_sales)} ${symbol}` : '—'}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{r.net_sales != null ? `${fmtMoney(r.net_sales)} ${symbol}` : '—'}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{r.closing_cash != null ? `${fmtMoney(r.closing_cash)} ${symbol}` : '—'}</td>
-                    <td className="mono" style={{ textAlign: 'right', color: r.difference == null ? undefined : (Number(r.difference) === 0 ? 'var(--muted)' : Number(r.difference) > 0 ? 'var(--accent, #16a34a)' : 'var(--danger, #dc2626)') }}>
+                    <td className="mono text-right">{r.total_sales != null ? `${fmtMoney(r.total_sales)} ${symbol}` : '—'}</td>
+                    <td className="mono text-right">{r.net_sales != null ? `${fmtMoney(r.net_sales)} ${symbol}` : '—'}</td>
+                    <td className="mono text-right">{r.closing_cash != null ? `${fmtMoney(r.closing_cash)} ${symbol}` : '—'}</td>
+                    <td className="mono text-right" style={{ color: r.difference == null ? undefined : (Number(r.difference) === 0 ? 'var(--muted)' : Number(r.difference) > 0 ? 'var(--accent, #16a34a)' : 'var(--danger, #dc2626)') }}>
                       {r.difference != null ? `${Number(r.difference) > 0 ? '+' : ''}${fmtMoney(r.difference)}` : '—'}
                     </td>
-                    <td style={{ textAlign: 'right' }}>
+                    <td className="text-right">
                       {r.status === 'closed' && (
-                        <button className="btn btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }} onClick={() => setReportFor(r)}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setReportFor(r)}>
                           ใบสรุป
                         </button>
                       )}
@@ -224,14 +224,14 @@ export default function SettlementPage() {
       {/* Open modal */}
       {showOpen && (
         <Modal title="เปิดยอดประจำวัน" onClose={() => setShowOpen(false)} size="sm">
-          <p style={{ marginTop: 0, fontSize: 13, color: 'var(--muted)' }}>
+          <p className="no-m text-md muted">
             ระบุเงินสดในลิ้นชักก่อนเริ่มขายวันนี้
           </p>
           <div style={{ marginBottom: 14 }}>
             <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>เงินสดตั้งต้น ({symbol})</label>
             <input type="number" min="0" step="0.01" value={openingCash} onChange={e => setOpeningCash(e.target.value)} autoFocus />
           </div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <div className="row-end">
             <button className="btn btn-ghost" onClick={() => setShowOpen(false)}>ยกเลิก</button>
             <button className="btn btn-primary" onClick={handleOpen} disabled={busy}>
               {busy ? <Spinner size={14} color="#fff" /> : 'เปิดยอด'}
@@ -243,7 +243,7 @@ export default function SettlementPage() {
       {/* Close modal */}
       {showClose && today && (
         <Modal title="ปิดยอดประจำวัน" onClose={() => setShowClose(false)} size="sm">
-          <p style={{ marginTop: 0, fontSize: 13, color: 'var(--muted)' }}>
+          <p className="no-m text-md muted">
             ยอดเงินสดที่คาดหวัง: <strong className="mono">{fmtMoney(liveExpected ?? 0)} {symbol}</strong>
           </p>
           <div style={{ marginBottom: 14 }}>
@@ -254,7 +254,7 @@ export default function SettlementPage() {
             <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>หมายเหตุ (ไม่บังคับ)</label>
             <input value={closeNote} onChange={e => setCloseNote(e.target.value)} placeholder="เช่น ส่วนต่างเกิดจาก…" />
           </div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <div className="row-end">
             <button className="btn btn-ghost" onClick={() => setShowClose(false)}>ยกเลิก</button>
             <button className="btn btn-primary" onClick={handleClose} disabled={busy}>
               {busy ? <Spinner size={14} color="#fff" /> : 'ปิดยอด'}
@@ -311,7 +311,7 @@ function ClosedSummary({ row, symbol, onPrint, isSuperAdmin, onReopen }) {
       <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12 }}>
         VAT {fmtMoney(row.total_vat)} · รายรับเพิ่ม {fmtMoney(row.total_income)} · รายจ่าย {fmtMoney(row.total_expense)} · เงินสดที่นับได้ {fmtMoney(row.closing_cash)} {symbol}
       </div>
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+      <div className="row-end" style={{ marginTop: 16 }}>
         {isSuperAdmin && (
           <button className="btn btn-ghost" onClick={handleReopen} disabled={reopenBusy}>
             {reopenBusy ? <Spinner size={13} /> : 'เปิดยอดซ้ำ'}
