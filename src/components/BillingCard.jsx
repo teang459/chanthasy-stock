@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { TIERS, tierOf, usageRatios, fmtTHB } from '../lib/billing'
+import { useToast } from '../contexts/ToastContext'
+import { tierOf, usageRatios, fmtTHB } from '../lib/billing'
+import { userMessage } from '../lib/errors'
 import Spinner from './Spinner'
 import * as I from './Icons'
 
@@ -25,9 +27,27 @@ function fillClass(ratio) {
 
 export default function BillingCard() {
   const { currentStoreId } = useAuth()
+  const { toast } = useToast()
   const [sub, setSub]         = useState(null)
   const [usage, setUsage]     = useState(null)
   const [loading, setLoading] = useState(true)
+  const [portalBusy, setPortalBusy] = useState(false)
+
+  async function openPortal() {
+    if (portalBusy || !currentStoreId) return
+    setPortalBusy(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('create-portal-session', {
+        body: { store_id: currentStoreId },
+      })
+      if (error) throw error
+      if (!data?.url) throw new Error('ไม่ได้ลิงก์ portal')
+      window.location.href = data.url
+    } catch (err) {
+      toast.error(`เปิดหน้าจัดการไม่สำเร็จ: ${userMessage(err)}`)
+      setPortalBusy(false)
+    }
+  }
 
   useEffect(() => {
     if (!currentStoreId) return
@@ -110,9 +130,9 @@ export default function BillingCard() {
           <Link to="/pricing" className="btn btn-primary">
             <I.Chart size={13} /> {isPaid ? 'ดูแพ็กเกจอื่น' : 'อัปเกรด'}
           </Link>
-          {isPaid && (
-            <button className="btn btn-ghost" disabled title="ระบบจ่ายเงินจะเปิดเร็วๆ นี้">
-              จัดการการเรียกเก็บ
+          {isPaid && sub?.provider_customer_id && (
+            <button className="btn btn-ghost" onClick={openPortal} disabled={portalBusy}>
+              {portalBusy ? <Spinner size={14} /> : 'จัดการการเรียกเก็บ'}
             </button>
           )}
         </div>
