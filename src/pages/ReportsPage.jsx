@@ -1,11 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
 import { useAuth } from '../contexts/AuthContext'
-import { statusOf, fmtCurrency, downloadCSV, fmtDate } from '../lib/utils'
+import { fmtCurrency, downloadCSV, fmtDate } from '../lib/utils'
 import { userMessage } from '../lib/errors'
 import { useCurrency } from '../contexts/CurrencyContext'
-import Spinner from '../components/Spinner'
 import { SkeletonStats } from '../components/Skeleton'
 import * as I from '../components/Icons'
 
@@ -19,29 +18,37 @@ const RANGES = [
   { value: 'all', label: 'ทั้งหมด' },
 ]
 
-function isoDaysAgo(days) {
-  const d = new Date()
-  d.setDate(d.getDate() - days)
-  d.setHours(0, 0, 0, 0)
-  return d.toISOString()
+const EMPTY_STATS = {
+  summary: { total: 0, outCount: 0, lowCount: 0, okCount: 0, totalStock: 0, totalValue: 0, totalCost: 0, movesCount: 0 },
+  catRows: [],
+  topStock: [],
+  topValue: [],
+  topCustomers: [],
 }
 
-// Page through movements so reports stay accurate beyond 5000 rows.
-// Hard-capped at MAX_ROWS to bound memory for runaway shops.
+// Page through movements only when the user explicitly exports.
+// 50k row cap bounds memory for runaway shops; the export toast warns
+// when results are truncated. Aggregates for the page itself come
+// from report_stats() RPC, so no rows ride along on normal load.
 const PAGE_SIZE = 1000
 const MAX_ROWS  = 50000
 
-async function fetchAllMovements(ownerId, range) {
+async function fetchAllMovements(storeId, rangeDays) {
   const out = []
   let offset = 0
   for (;;) {
     let q = supabase
       .from('movements')
-      .select('*, plants(name,sku,price)')
-      .eq('store_id', ownerId)
+      .select('created_at, type, qty, note, plants(name,sku)')
+      .eq('store_id', storeId)
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1)
-    if (range !== 'all') q = q.gte('created_at', isoDaysAgo(Number(range)))
+    if (rangeDays != null) {
+      const since = new Date()
+      since.setDate(since.getDate() - rangeDays)
+      since.setHours(0, 0, 0, 0)
+      q = q.gte('created_at', since.toISOString())
+    }
     const { data, error } = await q
     if (error) return { data: out, error, truncated: false }
     if (!data || data.length === 0) break
@@ -57,11 +64,11 @@ export default function ReportsPage() {
   const { toast } = useToast()
   const { ownerId } = useAuth()
   const { symbol } = useCurrency()
-  const [plants, setPlants]       = useState([])
-  const [moves, setMoves]         = useState([])
-  const [customers, setCustomers] = useState([])
-  const [loading, setLoading]     = useState(true)
-  const [range, setRange]         = useState('30')
+  const [stats, setStats]       = useState(EMPTY_STATS)
+  const [plants, setPlants]     = useState([])  // kept for stock CSV export
+  const [loading, setLoading]   = useState(true)
+  const [exporting, setExporting] = useState(false)
+  const [range, setRange]       = useState('30')
 
   useEffect(() => { if (ownerId) load() }, [range, ownerId])
 
@@ -69,21 +76,15 @@ export default function ReportsPage() {
     if (!ownerId) return
     setLoading(true)
     try {
-      const plantsQ = supabase.from('plants').select('*, categories(name_th,hue)').eq('store_id', ownerId)
-      const customersQ = supabase.from('customers').select('id,name,code').eq('store_id', ownerId)
-      const [{ data: p, error: pErr }, { data: c }, movesResult] = await Promise.all([
-        plantsQ,
-        customersQ,
-        fetchAllMovements(ownerId, range),
+      const rangeDays = range === 'all' ? null : Number(range)
+      const [{ data: statsData, error: sErr }, { data: p, error: pErr }] = await Promise.all([
+        supabase.rpc('report_stats', { p_store_id: ownerId, p_range_days: rangeDays }),
+        supabase.from('plants').select('id,sku,name,stock,price,cost,categories(name_th)').eq('store_id', ownerId),
       ])
+      if (sErr) throw sErr
       if (pErr) throw pErr
-      if (movesResult.error) throw movesResult.error
+      setStats({ ...EMPTY_STATS, ...(statsData ?? {}) })
       setPlants(p ?? [])
-      setCustomers(c ?? [])
-      setMoves(movesResult.data)
-      if (movesResult.truncated) {
-        toast.info('ข้อมูลเคลื่อนไหวมากเกิน 50,000 รายการ — แสดงเฉพาะรายการล่าสุด')
-      }
     } catch (err) {
       toast.error(`โหลดข้อมูลไม่สำเร็จ: ${userMessage(err)}`)
     } finally {
@@ -91,61 +92,39 @@ export default function ReportsPage() {
     }
   }
 
-  const stats = useMemo(() => {
-    const total      = plants.length
-    const outCount   = plants.filter(p => statusOf(p) === 'out').length
-    const lowCount   = plants.filter(p => statusOf(p) === 'low').length
-    const okCount    = plants.filter(p => statusOf(p) === 'ok').length
-    const totalStock = plants.reduce((s, p) => s + p.stock, 0)
-    const totalValue = plants.reduce((s, p) => s + p.stock * Number(p.price), 0)
-    const totalCost  = plants.reduce((s, p) => s + p.stock * Number(p.cost ?? 0), 0)
-
-    const byCat = {}
-    plants.forEach(p => {
-      const cn = p.categories?.name_th ?? 'ไม่มีหมวดหมู่'
-      if (!byCat[cn]) byCat[cn] = { name: cn, count: 0, stock: 0, value: 0 }
-      byCat[cn].count++
-      byCat[cn].stock += p.stock
-      byCat[cn].value += p.stock * Number(p.price)
-    })
-    const catRows = Object.values(byCat).sort((a, b) => b.value - a.value)
-    const topStock = [...plants].sort((a, b) => b.stock - a.stock).slice(0, 10)
-    // Top customers — sum sale movements (qty * plant.price) in the selected range
-    const byCustomer = {}
-    moves.forEach(m => {
-      if (m.type !== 'out' || !m.customer_id) return
-      const qty = Math.abs(m.qty ?? 0)
-      const price = Number(m.plants?.price ?? 0)
-      if (!byCustomer[m.customer_id]) byCustomer[m.customer_id] = { id: m.customer_id, count: 0, total: 0 }
-      byCustomer[m.customer_id].count++
-      byCustomer[m.customer_id].total += qty * price
-    })
-    const customerMap = Object.fromEntries(customers.map(c => [c.id, c]))
-    const topCustomers = Object.values(byCustomer)
-      .map(c => ({ ...c, name: customerMap[c.id]?.name ?? '(ลบแล้ว)', code: customerMap[c.id]?.code }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10)
-    const topValue = [...plants].sort((a, b) => (b.stock * b.price) - (a.stock * a.price)).slice(0, 10)
-
-    return { total, outCount, lowCount, okCount, totalStock, totalValue, totalCost, catRows, topStock, topValue, topCustomers }
-  }, [plants, moves, customers])
-
   function exportStock() {
     const rows = [
-      ['SKU', 'ชื่อต้นไม้', 'หมวดหมู่', 'สต็อก', 'ราคา', 'ต้นทุน', 'มูลค่า', 'สถานะ'],
-      ...plants.map(p => [p.sku, p.name, p.categories?.name_th ?? '', p.stock, p.price, p.cost ?? '', p.stock * Number(p.price), statusOf(p)]),
+      ['SKU', 'ชื่อต้นไม้', 'หมวดหมู่', 'สต็อก', 'ราคา', 'ต้นทุน', 'มูลค่า'],
+      ...plants.map(p => [
+        p.sku, p.name, p.categories?.name_th ?? '',
+        p.stock, p.price, p.cost ?? '',
+        p.stock * Number(p.price),
+      ]),
     ]
     downloadCSV(rows, `รายงาน-สต็อก-${new Date().toISOString().slice(0, 10)}.csv`)
     toast.success('ส่งออกสำเร็จ')
   }
 
-  function exportMovements() {
-    const rows = [
-      ['วันที่', 'ต้นไม้', 'SKU', 'ประเภท', 'จำนวน', 'หมายเหตุ'],
-      ...moves.map(m => [fmtDate(m.created_at), m.plants?.name ?? '', m.plants?.sku ?? '', TYPE_LABEL[m.type] ?? m.type, m.qty, m.note ?? '']),
-    ]
-    downloadCSV(rows, `รายงาน-เคลื่อนไหว-${new Date().toISOString().slice(0, 10)}.csv`)
-    toast.success('ส่งออกสำเร็จ')
+  async function exportMovements() {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const rangeDays = range === 'all' ? null : Number(range)
+      const { data, error, truncated } = await fetchAllMovements(ownerId, rangeDays)
+      if (error) { toast.error(`ส่งออกไม่สำเร็จ: ${userMessage(error)}`); return }
+      const rows = [
+        ['วันที่', 'ต้นไม้', 'SKU', 'ประเภท', 'จำนวน', 'หมายเหตุ'],
+        ...data.map(m => [
+          fmtDate(m.created_at), m.plants?.name ?? '', m.plants?.sku ?? '',
+          TYPE_LABEL[m.type] ?? m.type, m.qty, m.note ?? '',
+        ]),
+      ]
+      downloadCSV(rows, `รายงาน-เคลื่อนไหว-${new Date().toISOString().slice(0, 10)}.csv`)
+      if (truncated) toast.info('ข้อมูลเคลื่อนไหวมากเกิน 50,000 รายการ — ส่งออกเฉพาะรายการล่าสุด')
+      else toast.success('ส่งออกสำเร็จ')
+    } finally {
+      setExporting(false)
+    }
   }
 
   if (loading) {
@@ -157,43 +136,46 @@ export default function ReportsPage() {
     )
   }
 
-  const maxVal = Math.max(...stats.catRows.map(c => c.value), 1)
+  const { summary, catRows, topStock, topValue, topCustomers } = stats
+  const maxVal = Math.max(...catRows.map(c => Number(c.value)), 1)
 
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <h1 className="page-title">รายงาน</h1>
-          <p className="page-sub">{moves.length} รายการเคลื่อนไหวในช่วงที่เลือก</p>
+          <p className="page-sub">{summary.movesCount} รายการเคลื่อนไหวในช่วงที่เลือก</p>
         </div>
         <div className="page-actions" style={{ alignItems: 'center', gap: 8 }}>
           <select value={range} onChange={e => setRange(e.target.value)} style={{ minWidth: 110 }}>
             {RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
           </select>
-          <button className="btn btn-ghost" onClick={exportMovements}><I.Download size={13} /> เคลื่อนไหว</button>
+          <button className="btn btn-ghost" onClick={exportMovements} disabled={exporting}>
+            <I.Download size={13} /> {exporting ? 'กำลังส่งออก…' : 'เคลื่อนไหว'}
+          </button>
           <button className="btn btn-primary" onClick={exportStock}><I.Download size={13} /> สต็อกทั้งหมด</button>
         </div>
       </div>
 
       <div className="stats-grid">
-        <ReportStat label="สินค้าทั้งหมด"  value={stats.total}                          unit="รายการ" color={140} />
-        <ReportStat label="สต็อกรวม"        value={stats.totalStock}                     unit="หน่วย"  color={170} />
-        <ReportStat label="มูลค่าสต็อก"     value={fmtCurrency(stats.totalValue)}        unit={symbol} color={220} />
-        <ReportStat label="ต้นทุนสต็อก"     value={fmtCurrency(stats.totalCost)}         unit={symbol} color={60}  />
-        <ReportStat label="สต็อกปกติ"       value={stats.okCount}                        unit="รายการ" color={140} />
-        <ReportStat label="ต้องดำเนินการ"  value={stats.lowCount + stats.outCount}      unit="รายการ" color={25}  alert={(stats.lowCount + stats.outCount) > 0} />
+        <ReportStat label="สินค้าทั้งหมด"  value={summary.total}                            unit="รายการ" color={140} />
+        <ReportStat label="สต็อกรวม"        value={summary.totalStock}                       unit="หน่วย"  color={170} />
+        <ReportStat label="มูลค่าสต็อก"     value={fmtCurrency(summary.totalValue)}          unit={symbol} color={220} />
+        <ReportStat label="ต้นทุนสต็อก"     value={fmtCurrency(summary.totalCost)}           unit={symbol} color={60}  />
+        <ReportStat label="สต็อกปกติ"       value={summary.okCount}                          unit="รายการ" color={140} />
+        <ReportStat label="ต้องดำเนินการ"  value={summary.lowCount + summary.outCount}      unit="รายการ" color={25}  alert={(summary.lowCount + summary.outCount) > 0} />
       </div>
 
       <div className="report-grid">
         <section className="card">
           <div className="card-header"><h2 className="card-title">มูลค่าตามหมวดหมู่</h2></div>
-          {stats.catRows.length === 0 ? (
+          {catRows.length === 0 ? (
             <div className="card-empty" style={{ padding: 24, color: 'var(--muted)' }}>ยังไม่มีข้อมูล</div>
-          ) : stats.catRows.map(c => (
+          ) : catRows.map(c => (
             <div key={c.name} className="report-bar-row">
               <div className="report-bar-label">{c.name}</div>
               <div className="report-bar-track">
-                <div className="report-bar-fill" style={{ width: `${(c.value / maxVal) * 100}%` }} />
+                <div className="report-bar-fill" style={{ width: `${(Number(c.value) / maxVal) * 100}%` }} />
               </div>
               <div className="report-bar-val">{fmtCurrency(c.value)} {symbol}</div>
             </div>
@@ -206,12 +188,12 @@ export default function ReportsPage() {
             <table>
               <thead><tr><th>#</th><th>ต้นไม้</th><th>สต็อก</th><th>มูลค่า</th></tr></thead>
               <tbody>
-                {stats.topStock.map((p, i) => (
+                {topStock.map((p, i) => (
                   <tr key={p.id}>
                     <td className="mono muted">{i + 1}</td>
                     <td>{p.name}</td>
                     <td className="mono">{p.stock}</td>
-                    <td className="mono">{fmtCurrency(p.stock * p.price)} {symbol}</td>
+                    <td className="mono">{fmtCurrency(p.stock * Number(p.price))} {symbol}</td>
                   </tr>
                 ))}
               </tbody>
@@ -225,12 +207,12 @@ export default function ReportsPage() {
             <table>
               <thead><tr><th>#</th><th>ต้นไม้</th><th>ราคา</th><th>มูลค่ารวม</th></tr></thead>
               <tbody>
-                {stats.topValue.map((p, i) => (
+                {topValue.map((p, i) => (
                   <tr key={p.id}>
                     <td className="mono muted">{i + 1}</td>
                     <td>{p.name}</td>
                     <td className="mono">{fmtCurrency(p.price)} {symbol}</td>
-                    <td className="mono">{fmtCurrency(p.stock * p.price)} {symbol}</td>
+                    <td className="mono">{fmtCurrency(p.stock * Number(p.price))} {symbol}</td>
                   </tr>
                 ))}
               </tbody>
@@ -240,7 +222,7 @@ export default function ReportsPage() {
 
         <section className="card">
           <div className="card-header"><h2 className="card-title">Top 10 ลูกค้าในช่วงนี้</h2></div>
-          {stats.topCustomers.length === 0 ? (
+          {topCustomers.length === 0 ? (
             <div className="card-empty" style={{ padding: 24, color: 'var(--muted)' }}>
               ยังไม่มีข้อมูลลูกค้า — บันทึกการขายพร้อมเลือกลูกค้าใน Stock
             </div>
@@ -249,7 +231,7 @@ export default function ReportsPage() {
               <table>
                 <thead><tr><th>#</th><th>ลูกค้า</th><th>ครั้ง</th><th>ยอดรวม</th></tr></thead>
                 <tbody>
-                  {stats.topCustomers.map((c, i) => (
+                  {topCustomers.map((c, i) => (
                     <tr key={c.id}>
                       <td className="mono muted">{i + 1}</td>
                       <td>

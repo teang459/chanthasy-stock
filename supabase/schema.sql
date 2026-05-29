@@ -29,7 +29,9 @@
 --           writes user.create / user.delete rows.
 --   - 017 — audit triggers FK-safe on store delete (store_id → NULL
 --           when parent gone) + handle_new_user role 'staff' → 'member'
---           realignment with profiles_role_check enum.             ← applied here
+--           realignment with profiles_role_check enum.
+--   - 018 — report_stats() RPC: server-side aggregate for Reports page
+--           (replaced 50k row client-side aggregation).            ← applied here
 -- ================================================================
 
 -- ====================================================
@@ -538,6 +540,120 @@ BEGIN
 END;
 $shops$;
 GRANT EXECUTE ON FUNCTION public.get_all_shops_for_admin() TO authenticated;
+
+-- ====================================================
+-- Reports aggregate (migration 018)
+-- Replaces client-side aggregation of up to 50k movement rows with a
+-- single JSON blob. Page renders from this; movement CSV export still
+-- fetches raw rows lazily.
+-- ====================================================
+DROP FUNCTION IF EXISTS public.report_stats(UUID, INTEGER);
+CREATE OR REPLACE FUNCTION public.report_stats(
+  p_store_id    UUID,
+  p_range_days  INTEGER DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $func$
+DECLARE
+  v_from       TIMESTAMPTZ;
+  v_summary    JSONB;
+  v_cat_rows   JSONB;
+  v_top_stock  JSONB;
+  v_top_value  JSONB;
+  v_top_cust   JSONB;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '42501';
+  END IF;
+  IF NOT (is_super_admin() OR has_perm(p_store_id, 'view_reports')) THEN
+    RAISE EXCEPTION 'Not permitted to view reports' USING ERRCODE = '42501';
+  END IF;
+
+  IF p_range_days IS NOT NULL AND p_range_days > 0 THEN
+    v_from := date_trunc('day', NOW() - make_interval(days => p_range_days));
+  END IF;
+
+  SELECT jsonb_build_object(
+    'total',       COUNT(*),
+    'outCount',    COUNT(*) FILTER (WHERE stock <= 0),
+    'lowCount',    COUNT(*) FILTER (WHERE stock > 0 AND stock <= min_stock),
+    'okCount',     COUNT(*) FILTER (WHERE stock > min_stock),
+    'totalStock',  COALESCE(SUM(stock), 0),
+    'totalValue',  COALESCE(SUM(stock * price), 0),
+    'totalCost',   COALESCE(SUM(stock * COALESCE(cost, 0)), 0)
+  )
+  INTO v_summary
+  FROM plants
+  WHERE store_id = p_store_id;
+
+  v_summary := v_summary || jsonb_build_object(
+    'movesCount',
+    (SELECT COUNT(*) FROM movements
+      WHERE store_id = p_store_id
+        AND (v_from IS NULL OR created_at >= v_from))
+  );
+
+  SELECT COALESCE(jsonb_agg(row_to_json(c) ORDER BY (c.value)::NUMERIC DESC), '[]'::jsonb)
+  INTO v_cat_rows
+  FROM (
+    SELECT
+      COALESCE(cat.name_th, 'ไม่มีหมวดหมู่') AS name,
+      COUNT(p.id)                            AS count,
+      COALESCE(SUM(p.stock), 0)              AS stock,
+      COALESCE(SUM(p.stock * p.price), 0)    AS value
+    FROM plants p
+    LEFT JOIN categories cat ON cat.id = p.category_id
+    WHERE p.store_id = p_store_id
+    GROUP BY COALESCE(cat.name_th, 'ไม่มีหมวดหมู่')
+  ) c;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb)
+  INTO v_top_stock
+  FROM (
+    SELECT id, name, sku, stock, price
+    FROM plants WHERE store_id = p_store_id
+    ORDER BY stock DESC, name ASC LIMIT 10
+  ) t;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb)
+  INTO v_top_value
+  FROM (
+    SELECT id, name, sku, stock, price
+    FROM plants WHERE store_id = p_store_id
+    ORDER BY (stock * price) DESC, name ASC LIMIT 10
+  ) t;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY (t.total)::NUMERIC DESC), '[]'::jsonb)
+  INTO v_top_cust
+  FROM (
+    SELECT
+      cu.id, cu.name, cu.code,
+      COUNT(m.id)::INTEGER                                   AS count,
+      COALESCE(SUM(ABS(m.qty) * COALESCE(pl.price, 0)), 0)  AS total
+    FROM movements m
+    JOIN customers cu ON cu.id = m.customer_id
+    LEFT JOIN plants pl ON pl.id = m.plant_id
+    WHERE m.store_id = p_store_id
+      AND m.type = 'out'
+      AND m.customer_id IS NOT NULL
+      AND (v_from IS NULL OR m.created_at >= v_from)
+    GROUP BY cu.id, cu.name, cu.code
+    ORDER BY total DESC LIMIT 10
+  ) t;
+
+  RETURN jsonb_build_object(
+    'summary',      v_summary,
+    'catRows',      v_cat_rows,
+    'topStock',     v_top_stock,
+    'topValue',     v_top_value,
+    'topCustomers', v_top_cust
+  );
+END;
+$func$;
+GRANT EXECUTE ON FUNCTION public.report_stats(UUID, INTEGER) TO authenticated;
 
 -- ====================================================
 -- Phase E: Daily Settlement (migration 009)
