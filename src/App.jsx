@@ -32,6 +32,7 @@ const AdminPage      = lazy(() => import('./pages/AdminPage'))
 const TermsPage      = lazy(() => import('./pages/TermsPage'))
 const PrivacyPage    = lazy(() => import('./pages/PrivacyPage'))
 const LandingPage    = lazy(() => import('./pages/LandingPage'))
+const PricingPage    = lazy(() => import('./pages/PricingPage'))
 
 function RecoveryHandler() {
   const { isRecoveryMode } = useAuth()
@@ -70,6 +71,7 @@ export default function App() {
             <Routes>
               <Route path="/login"          element={<LoginPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/pricing"        element={<PricingPage />} />
               <Route path="/" element={<Guard><Layout /></Guard>}>
                 <Route index              element={<DashboardPage />} />
                 <Route path="stock"       element={<StockPage />} />

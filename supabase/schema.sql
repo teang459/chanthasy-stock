@@ -31,7 +31,11 @@
 --           when parent gone) + handle_new_user role 'staff' → 'member'
 --           realignment with profiles_role_check enum.
 --   - 018 — report_stats() RPC: server-side aggregate for Reports page
---           (replaced 50k row client-side aggregation).            ← applied here
+--           (replaced 50k row client-side aggregation).
+--   - 019 — billing foundation: subscriptions table, free-tier
+--           auto-create trigger, get_store_usage() RPC, audit hook.
+--           Payment provider wiring (Stripe / Omise) handled by
+--           Edge Functions writing via service_role.              ← applied here
 -- ================================================================
 
 -- ====================================================
@@ -654,6 +658,112 @@ BEGIN
 END;
 $func$;
 GRANT EXECUTE ON FUNCTION public.report_stats(UUID, INTEGER) TO authenticated;
+
+-- ====================================================
+-- Billing / subscriptions (migration 019)
+-- One row per store. Writes flow through Edge Functions (Stripe / Omise
+-- webhooks) using the service_role key, so RLS only exposes read access
+-- to store members and full access to super_admin.
+-- ====================================================
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id                 UUID NOT NULL UNIQUE REFERENCES stores(id) ON DELETE CASCADE,
+  tier                     TEXT NOT NULL DEFAULT 'free'
+                             CHECK (tier IN ('free','pro','business')),
+  status                   TEXT NOT NULL DEFAULT 'active'
+                             CHECK (status IN ('active','trialing','past_due','canceled','expired')),
+  trial_end                TIMESTAMPTZ,
+  current_period_start     TIMESTAMPTZ,
+  current_period_end       TIMESTAMPTZ,
+  cancel_at_period_end     BOOLEAN NOT NULL DEFAULT FALSE,
+  provider                 TEXT CHECK (provider IN ('stripe','omise') OR provider IS NULL),
+  provider_customer_id     TEXT,
+  provider_subscription_id TEXT,
+  created_at               TIMESTAMPTZ DEFAULT NOW(),
+  updated_at               TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS subscriptions_status_idx ON subscriptions(status);
+CREATE INDEX IF NOT EXISTS subscriptions_provider_sub_idx
+  ON subscriptions(provider_subscription_id) WHERE provider_subscription_id IS NOT NULL;
+
+DROP TRIGGER IF EXISTS subscriptions_updated_at ON subscriptions;
+CREATE TRIGGER subscriptions_updated_at
+  BEFORE UPDATE ON subscriptions
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS subs_select ON subscriptions;
+CREATE POLICY subs_select ON subscriptions FOR SELECT
+  USING (is_super_admin() OR store_id = ANY(my_store_ids()));
+
+DROP POLICY IF EXISTS subs_super_admin_write ON subscriptions;
+CREATE POLICY subs_super_admin_write ON subscriptions FOR ALL
+  USING (is_super_admin()) WITH CHECK (is_super_admin());
+
+CREATE OR REPLACE FUNCTION public.create_default_subscription()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $func$
+BEGIN
+  INSERT INTO subscriptions (store_id, tier, status)
+  VALUES (NEW.id, 'free', 'active')
+  ON CONFLICT (store_id) DO NOTHING;
+  RETURN NEW;
+END $func$;
+
+DROP TRIGGER IF EXISTS stores_create_subscription ON stores;
+CREATE TRIGGER stores_create_subscription
+  AFTER INSERT ON stores
+  FOR EACH ROW EXECUTE FUNCTION create_default_subscription();
+
+DROP FUNCTION IF EXISTS public.get_store_usage(UUID);
+CREATE OR REPLACE FUNCTION public.get_store_usage(p_store_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $func$
+DECLARE
+  v_plants    INTEGER;
+  v_moves_30d INTEGER;
+  v_members   INTEGER;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '42501';
+  END IF;
+  IF NOT (is_super_admin() OR p_store_id = ANY(my_store_ids())) THEN
+    RAISE EXCEPTION 'Not permitted' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT COUNT(*) INTO v_plants     FROM plants     WHERE store_id = p_store_id;
+  SELECT COUNT(*) INTO v_moves_30d  FROM movements  WHERE store_id = p_store_id AND created_at >= NOW() - INTERVAL '30 days';
+  SELECT COUNT(*) INTO v_members    FROM store_members WHERE store_id = p_store_id;
+
+  RETURN jsonb_build_object(
+    'plants',       v_plants,
+    'movements30d', v_moves_30d,
+    'members',      v_members
+  );
+END $func$;
+GRANT EXECUTE ON FUNCTION public.get_store_usage(UUID) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.audit_subscription_trigger()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $func$
+BEGIN
+  IF NEW.tier IS DISTINCT FROM OLD.tier OR NEW.status IS DISTINCT FROM OLD.status THEN
+    PERFORM log_audit(
+      'subscription.change', 'subscription',
+      NEW.id, NEW.store_id,
+      jsonb_build_object(
+        'before_tier', OLD.tier, 'after_tier', NEW.tier,
+        'before_status', OLD.status, 'after_status', NEW.status
+      )
+    );
+  END IF;
+  RETURN NEW;
+END $func$;
+
+DROP TRIGGER IF EXISTS subscriptions_audit ON subscriptions;
+CREATE TRIGGER subscriptions_audit
+  AFTER UPDATE ON subscriptions
+  FOR EACH ROW EXECUTE FUNCTION audit_subscription_trigger();
 
 -- ====================================================
 -- Phase E: Daily Settlement (migration 009)

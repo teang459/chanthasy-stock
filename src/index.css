@@ -1183,3 +1183,110 @@ tbody tr:hover { background: var(--surface-2) }
   .landing-nav { padding: 12px 16px; }
 }
 
+
+/* ============================================================
+   PRICING PAGE
+============================================================ */
+.pricing-page {
+  min-height: 100vh;
+  background: var(--bg);
+  padding: 48px 24px 80px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.pricing-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--muted); font-size: 13px; text-decoration: none;
+  margin-bottom: 32px;
+}
+.pricing-back:hover { color: var(--accent); }
+.pricing-header { text-align: center; margin-bottom: 48px; }
+.pricing-header h1 { font-size: 30px; margin: 0 0 12px; }
+.pricing-header p { color: var(--muted); margin: 0; font-size: 15px; }
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+}
+.pricing-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px 24px;
+  display: flex; flex-direction: column;
+}
+.pricing-card--recommended {
+  border-color: var(--accent);
+  box-shadow: 0 4px 24px color-mix(in oklch, var(--accent) 25%, transparent);
+  transform: translateY(-4px);
+}
+.pricing-badge {
+  position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+  background: var(--accent); color: #fff;
+  padding: 4px 12px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.4px;
+}
+.pricing-name {
+  font-size: 18px; margin: 0 0 12px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.pricing-price { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.pricing-price-num { font-size: 36px; font-weight: 700; line-height: 1; }
+.pricing-price-unit { color: var(--muted); font-size: 13px; }
+.pricing-blurb { color: var(--muted); font-size: 13px; line-height: 1.55; margin: 0 0 20px; min-height: 38px; }
+
+.pricing-features {
+  list-style: none; padding: 0; margin: 0 0 24px;
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1;
+}
+.pricing-features li {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13.5px;
+}
+.pricing-features li svg { color: var(--accent); flex-shrink: 0; }
+
+.pricing-cta {
+  width: 100%; justify-content: center; padding: 12px;
+  font-size: 14px; text-decoration: none;
+}
+
+.pricing-footnote {
+  text-align: center; color: var(--muted); font-size: 12px;
+  margin-top: 36px;
+}
+
+/* ============================================================
+   BILLING CARD (in Settings)
+============================================================ */
+.billing-tier-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.billing-tier-name { font-size: 20px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+.billing-tier-badge {
+  display: inline-block; padding: 2px 10px;
+  background: var(--accent-soft); color: var(--accent);
+  border-radius: 999px; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.4px; text-transform: uppercase;
+}
+.billing-status { font-size: 12px; color: var(--muted); }
+
+.billing-usage { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; }
+.billing-usage-row { display: flex; flex-direction: column; gap: 4px; }
+.billing-usage-head {
+  display: flex; justify-content: space-between;
+  font-size: 12.5px; color: var(--muted);
+}
+.billing-usage-head strong { color: var(--text); font-weight: 600; }
+.billing-usage-bar {
+  height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden;
+}
+.billing-usage-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.3s; }
+.billing-usage-fill--warn { background: #f59e0b; }
+.billing-usage-fill--over { background: var(--danger, #dc2626); }
+
+.billing-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }

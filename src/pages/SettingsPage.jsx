@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { supabase } from '../lib/supabase'
 import Spinner from '../components/Spinner'
+import BillingCard from '../components/BillingCard'
 import Field from '../components/Field'
 import MfaEnroll from '../components/MfaEnroll'
 import * as I from '../components/Icons'
@@ -188,6 +189,9 @@ export default function SettingsPage() {
             </div>
           </form>
         </section>
+
+        {/* Billing & usage */}
+        {currentStore && <BillingCard />}
 
         {/* Store info — for store admins of the current store */}
         {currentStore && (
