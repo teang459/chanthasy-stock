@@ -337,7 +337,7 @@ export default function SettingsPage() {
             <div className="about-row"><span>เวอร์ชัน</span><span>3.0.0</span></div>
             <div className="about-row"><span>Framework</span><span>React 18 + Vite</span></div>
             <div className="about-row"><span>Database</span><span>Supabase (PostgreSQL)</span></div>
-            <div className="about-row"><span>สกุลเงิน</span><span>{currency === 'LAK' ? 'ກີບ (₭) LAK' : 'บาท (฿) THB'}</span></div>
+            <div className="about-row"><span>สกุลเงิน</span><span>{currentStore?.currency === 'LAK' ? 'ກີບ (₭) LAK' : 'บาท (฿) THB'}</span></div>
             <div className="about-row"><span>อีเมล</span><span>{user?.email}</span></div>
           </div>
         </section>

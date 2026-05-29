@@ -326,7 +326,6 @@ function MembersPanel({ store, members, emails, onAdd, onEdit, onRemove, isSelf 
                 <td className="text-right">
                   <button className="btn btn-ghost btn-xs" onClick={() => onEdit(m)}>แก้</button>
                   <button
-                    className="btn btn-ghost"
                     className="btn btn-ghost btn-xs text-red"
                     onClick={() => onRemove(m)}
                     disabled={isSelf(m.user_id)}
