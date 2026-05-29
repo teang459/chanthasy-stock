@@ -2,7 +2,20 @@
 // When inclusive, the displayed line price already contains VAT;
 // when exclusive, VAT is added on top of the line total.
 
-export function vatBreakdown(lineTotal, { vat_rate = 0, vat_inclusive = true } = {}) {
+export interface VatOptions {
+  vat_rate?: number | string
+  vat_inclusive?: boolean
+}
+
+export interface VatResult {
+  base: number
+  vat: number
+  total: number
+  rate: number
+  inclusive: boolean
+}
+
+export function vatBreakdown(lineTotal: number, { vat_rate = 0, vat_inclusive = true }: VatOptions = {}): VatResult {
   const rate = Number(vat_rate) || 0
   if (rate <= 0) {
     return { base: lineTotal, vat: 0, total: lineTotal, rate: 0, inclusive: !!vat_inclusive }
@@ -16,6 +29,6 @@ export function vatBreakdown(lineTotal, { vat_rate = 0, vat_inclusive = true } =
 }
 
 // Accepts any object with vat_rate (store row or legacy profile).
-export function hasVat(src) {
-  return Boolean(src) && Number(src.vat_rate) > 0
+export function hasVat(src: VatOptions | null | undefined): boolean {
+  return Boolean(src) && Number((src as VatOptions).vat_rate) > 0
 }

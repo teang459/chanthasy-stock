@@ -1,33 +1,40 @@
-export function statusOf(plant) {
+export interface Plant {
+  stock: number
+  min_stock: number
+}
+
+export type StockStatus = 'ok' | 'low' | 'out'
+
+export function statusOf(plant: Plant | null | undefined): StockStatus {
   if (!plant || plant.stock <= 0) return 'out'
   if (plant.stock <= plant.min_stock) return 'low'
   return 'ok'
 }
 
-export function statusLabel(s) {
-  return { ok: 'ปกติ', low: 'ใกล้หมด', out: 'หมด' }[s] ?? s
+export function statusLabel(s: string): string {
+  return ({ ok: 'ปกติ', low: 'ใกล้หมด', out: 'หมด' } as Record<string, string>)[s] ?? s
 }
 
-export function fmtDate(iso) {
+export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export function fmtDateTime(iso) {
+export function fmtDateTime(iso: string | null | undefined): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('th-TH', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-export function fmtCurrency(n) {
+export function fmtCurrency(n: number | string | null | undefined): string {
   if (n == null || n === '') return '—'
   return Number(n).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
-export function generateSKU(prefix = 'PLT') {
+export function generateSKU(prefix = 'PLT'): string {
   return `${prefix}${Date.now().toString(36).toUpperCase().slice(-5)}`
 }
 
-export function downloadCSV(rows, filename) {
+export function downloadCSV(rows: (string | number | null | undefined)[][], filename: string): void {
   const BOM = '﻿'
   const csv = BOM + rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -38,11 +45,11 @@ export function downloadCSV(rows, filename) {
   URL.revokeObjectURL(a.href)
 }
 
-export function calDaysInMonth(year, month) {
+export function calDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate()
 }
 
-export function calFirstDay(year, month) {
+export function calFirstDay(year: number, month: number): number {
   return new Date(year, month, 1).getDay()
 }
 

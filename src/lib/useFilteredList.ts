@@ -1,28 +1,38 @@
 import { useMemo, useState, useEffect } from 'react'
 
-/**
- * Filter + sort + paginate a list in memory.
- *
- * @param {Array} items
- * @param {Object} opts
- * @param {string}   opts.search        — search query
- * @param {Function} opts.searchKey     — (item) => string used to match search
- * @param {Function} opts.filterFn      — optional extra filter predicate
- * @param {string}   opts.sortField     — field name to sort by
- * @param {'asc'|'desc'} opts.sortDir
- * @param {number}   opts.pageSize      — items per page
- * @returns { paged, filtered, totalPages, page, setPage, toggleSort, sortField, sortDir }
- */
-export function useFilteredList(items, {
-  search = '',
-  searchKey,
-  filterFn,
-  sortField: initialSort = 'name',
-  sortDir: initialDir = 'asc',
-  pageSize = 30,
-} = {}) {
+export interface FilteredListOptions<T> {
+  search?: string
+  searchKey?: (item: T) => string | null | undefined
+  filterFn?: (item: T) => boolean
+  sortField?: string
+  sortDir?: 'asc' | 'desc'
+  pageSize?: number
+}
+
+export interface FilteredListResult<T> {
+  paged: T[]
+  filtered: T[]
+  totalPages: number
+  page: number
+  setPage: (p: number) => void
+  toggleSort: (field: string) => void
+  sortField: string
+  sortDir: 'asc' | 'desc'
+}
+
+export function useFilteredList<T extends Record<string, unknown>>(
+  items: T[],
+  {
+    search = '',
+    searchKey,
+    filterFn,
+    sortField: initialSort = 'name',
+    sortDir: initialDir = 'asc',
+    pageSize = 30,
+  }: FilteredListOptions<T> = {},
+): FilteredListResult<T> {
   const [sortField, setSortField] = useState(initialSort)
-  const [sortDir, setSortDir]     = useState(initialDir)
+  const [sortDir, setSortDir]     = useState<'asc' | 'desc'>(initialDir)
   const [page, setPage]           = useState(0)
 
   // Reset to page 0 whenever filters change
@@ -54,7 +64,7 @@ export function useFilteredList(items, {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paged = filtered.slice(page * pageSize, (page + 1) * pageSize)
 
-  function toggleSort(field) {
+  function toggleSort(field: string) {
     setSortDir(d => sortField === field ? (d === 'asc' ? 'desc' : 'asc') : 'asc')
     setSortField(field)
   }

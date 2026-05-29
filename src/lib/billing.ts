@@ -5,7 +5,37 @@
 // Numbers are easy to change here — search "TIERS" before tweaking
 // quotas in any other file.
 
-export const TIERS = {
+export interface TierLimits {
+  plants: number
+  members: number
+  movements30d: number
+}
+
+export interface Tier {
+  id: string
+  name: string
+  nameTh: string
+  priceTHB: number
+  blurb: string
+  blurbEn: string
+  limits: TierLimits
+  features: string[]
+  recommended?: boolean
+}
+
+export interface Subscription {
+  tier: string
+  [key: string]: unknown
+}
+
+export interface Usage {
+  plants?: number
+  members?: number
+  movements30d?: number
+  [key: string]: number | undefined
+}
+
+export const TIERS: Record<string, Tier> = {
   free: {
     id:       'free',
     name:     'Free',
@@ -70,9 +100,9 @@ export const TIERS = {
   },
 }
 
-export const TIER_ORDER = ['free', 'pro', 'business']
+export const TIER_ORDER: string[] = ['free', 'pro', 'business']
 
-export function tierOf(subscription) {
+export function tierOf(subscription: Subscription | null | undefined): Tier {
   if (!subscription) return TIERS.free
   return TIERS[subscription.tier] || TIERS.free
 }
@@ -80,11 +110,11 @@ export function tierOf(subscription) {
 // usage = { plants, movements30d, members }
 // Returns { plants: 0.45, members: 1.0, movements30d: 0.6 } — clamped to [0, 1.5]
 // (>1 means over quota; the UI shows it red).
-export function usageRatios(tier, usage) {
+export function usageRatios(tier: Tier | null | undefined, usage: Usage | null | undefined): Record<string, number> {
   if (!tier || !usage) return {}
-  const out = {}
+  const out: Record<string, number> = {}
   for (const key of Object.keys(tier.limits)) {
-    const limit = tier.limits[key]
+    const limit = tier.limits[key as keyof TierLimits]
     const used  = usage[key] ?? 0
     if (!Number.isFinite(limit)) { out[key] = 0; continue }
     if (limit <= 0)              { out[key] = 1; continue }
@@ -93,16 +123,16 @@ export function usageRatios(tier, usage) {
   return out
 }
 
-export function fmtTHB(amount) {
+export function fmtTHB(amount: number | string): string {
   return Number(amount).toLocaleString('th-TH', { maximumFractionDigits: 0 })
 }
 
 // Whether a given action would exceed the plan. Used as a soft check in
 // the UI; the DB still enforces nothing yet — that lands when payment
 // wiring goes in and we decide hard vs. soft enforcement.
-export function isOverLimit(tier, usage, key) {
+export function isOverLimit(tier: Tier | null | undefined, usage: Usage | null | undefined, key: string): boolean {
   if (!tier || !usage) return false
-  const limit = tier.limits?.[key]
+  const limit = tier.limits?.[key as keyof TierLimits]
   if (!Number.isFinite(limit)) return false
   return (usage[key] ?? 0) >= limit
 }
