@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { setSentryUser } from '../lib/sentry'
 import {
   ALL_PERMS,
   isSuperAdmin as resolveSuperAdmin,
@@ -103,10 +104,12 @@ export function AuthProvider({ children }) {
     if (nextUserId !== prevUserId) {
       userIdRef.current = nextUserId
       if (u) {
+        setSentryUser({ id: u.id, email: u.email })
         const p = await fetchProfile(u.id)
         const list = await fetchStoresFor(p)
         _setCurrentStoreId(resolveInitialStore(list, p))
       } else {
+        setSentryUser(null)
         setProfile(null)
         setStores([])
         _setCurrentStoreId(null)
@@ -127,6 +130,7 @@ export function AuthProvider({ children }) {
       if (event === 'MFA_CHALLENGE_VERIFIED') setMfaRequired(false)
 
       if (event === 'SIGNED_OUT') {
+        setSentryUser(null)
         userIdRef.current = null
         setUser(null); setProfile(null); setStores([])
         _setCurrentStoreId(null)

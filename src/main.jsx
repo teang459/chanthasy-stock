@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 import { registerSW } from 'virtual:pwa-register'
+import { initSentry } from './lib/sentry'
+
+// Initialize before anything else so boot-time errors are captured.
+initSentry()
 
 // Auto-update service worker (silent — page picks up new code on next navigation)
 const updateSW = registerSW({
