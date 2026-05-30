@@ -95,17 +95,22 @@ export function AuthProvider({ children }) {
     if (nextUserId !== prevUserId) {
       userIdRef.current = nextUserId
       if (u) {
+        setSentryUser({ id: u.id, email: u.email })
         // AAL only changes on sign-in / MFA enroll / MFA verify — skip
         // it on TOKEN_REFRESHED (runs ~hourly per session) to save a
         // round trip on every refresh.
-        try {
-          const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-          setMfaRequired(aal?.currentLevel === 'aal1' && aal?.nextLevel === 'aal2')
-        } catch (err) {
-          console.warn('AAL check failed (non-fatal):', err)
+        // Run AAL check and profile fetch in parallel; fetchStoresFor
+        // needs the profile result so it still runs sequentially after.
+        const [aalResult, p] = await Promise.all([
+          supabase.auth.mfa.getAuthenticatorAssuranceLevel().catch(err => {
+            console.warn('AAL check failed (non-fatal):', err)
+            return null
+          }),
+          fetchProfile(u.id),
+        ])
+        if (aalResult) {
+          setMfaRequired(aalResult.data?.currentLevel === 'aal1' && aalResult.data?.nextLevel === 'aal2')
         }
-        setSentryUser({ id: u.id, email: u.email })
-        const p = await fetchProfile(u.id)
         const list = await fetchStoresFor(p)
         _setCurrentStoreId(resolveInitialStore(list, p))
       } else {
