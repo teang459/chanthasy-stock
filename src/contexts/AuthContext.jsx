@@ -18,6 +18,7 @@ export function AuthProvider({ children }) {
   const [stores, setStores]                   = useState([])         // [{ id, code, name, role, perms, ... }]
   const [currentStoreId, _setCurrentStoreId]  = useState(null)
   const [loading, setLoading]                 = useState(true)
+  const [slowLoad, setSlowLoad]               = useState(false)
   const [isRecoveryMode, setIsRecoveryMode]   = useState(false)
   const [mfaRequired, setMfaRequired]         = useState(false)
 
@@ -119,7 +120,11 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
+    const slowTimer = setTimeout(() => setSlowLoad(true), 8000)
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      clearTimeout(slowTimer)
+      setSlowLoad(false)
       await processSession(session)
       initialized.current = true
       setLoading(false)
@@ -143,7 +148,7 @@ export function AuthProvider({ children }) {
       await processSession(session)
     })
 
-    return () => subscription.unsubscribe()
+    return () => { clearTimeout(slowTimer); subscription.unsubscribe() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -204,7 +209,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      user, profile, loading, login, logout, updateProfile, changePassword, refreshProfile,
+      user, profile, loading, slowLoad, login, logout, updateProfile, changePassword, refreshProfile,
       isRecoveryMode, clearRecoveryMode,
       mfaRequired, clearMfaRequired,
 

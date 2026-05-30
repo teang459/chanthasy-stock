@@ -45,9 +45,19 @@ function RecoveryHandler() {
 }
 
 function Guard({ children }) {
-  const { user, loading, mfaRequired } = useAuth()
+  const { user, loading, mfaRequired, slowLoad } = useAuth()
   const location = useLocation()
-  if (loading) return <div className="fullscreen-center"><Spinner size={36} /></div>
+  if (loading) return (
+    <div className="fullscreen-center">
+      <Spinner size={36} />
+      {slowLoad && (
+        <p style={{ marginTop: 14, color: '#888', fontSize: 13, textAlign: 'center' }}>
+          กำลังเชื่อมต่อ…<br />
+          <span style={{ fontSize: 12 }}>(Supabase กำลังตื่น อาจใช้เวลาสักครู่)</span>
+        </p>
+      )}
+    </div>
+  )
   if (!user) {
     // Show public landing at root; redirect deep links to the login page.
     if (location.pathname === '/') return <LandingPage />
